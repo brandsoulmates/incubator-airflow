@@ -90,7 +90,8 @@ _operators = {
     'mssql_to_hive': ['MsSqlToHiveTransfer'],
     'slack_operator': ['SlackAPIOperator', 'SlackAPIPostOperator'],
     'generic_transfer': ['GenericTransfer'],
-    'oracle_operator': ['OracleOperator']
+    'oracle_operator': ['OracleOperator'],
+    'aws_lambda_operator': ['AwsLambdaOperator']
 }
 
 import os as _os
