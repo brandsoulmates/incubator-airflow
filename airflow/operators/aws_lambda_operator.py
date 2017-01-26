@@ -6,7 +6,7 @@ Author: jmolle
 
 import logging
 
-from airflow.hooks import AwsLambdaHook #@UnresolvedImport
+from airflow.hooks.aws_lambda_hook import AwsLambdaHook
 from airflow.models import BaseOperator
 from airflow.utils.decorators import apply_defaults
 
@@ -14,18 +14,20 @@ class AwsLambdaOperator(BaseOperator):
     """
     Execute a Bash script, command or set of commands.
 
-    :param bash_command: The command, set of commands or reference to a
-        bash script (must be '.sh') to be executed.
-    :type bash_command: string
-    :param env: If env is not None, it must be a mapping that defines the
-        environment variables for the new process; these are used instead
-        of inheriting the current process environment, which is the default
-        behavior. (templated)
-    :type env: dict
-    :type output_encoding: output encoding of bash command
+    :param event_json: The json that we're going to pass to the lambda function.
+    :type event_json: dict
+    :param function_name: The name of the function being executed.
+    :type function_name: string
+    :param version: The version or alias of the function to run.
+    :type version: string
+    :param invocation_type: The type of callback we expect.
+
+        Eventually I'd like to make this more invisible, so the operator can launch sets
+        of functions.
+        
+    :type invocation_type: string
     """
-    template_fields = ('bash_command', 'env')
-    template_ext = ('.sh', '.bash',)
+    
     ui_color = '#f0ede4'
 
     @apply_defaults
@@ -33,7 +35,7 @@ class AwsLambdaOperator(BaseOperator):
             self,
             event_json,
             function_name,
-            aws_lambda_conn_id = 'aws_lambda_default',
+            aws_lambda_conn_id = 'aws_default',
             version=None,
             invocation_type = None,
             *args, **kwargs):

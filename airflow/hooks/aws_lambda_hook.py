@@ -14,6 +14,7 @@
 
 from __future__ import division
 from future import standard_library
+from botocore.exceptions import ClientError
 standard_library.install_aliases()
 import json
 from six import string_types
@@ -37,7 +38,7 @@ class AwsLambdaHook(BaseHook):
     """
     Interact with Λ. This class is a wrapper around the boto library.
     """
-    def __init__(self, aws_lambda_conn_id='aws_lambda_default'):
+    def __init__(self, aws_lambda_conn_id='aws_default'):
         self.aws_lambda_conn_id = aws_lambda_conn_id
         self.aws_lambda_conn = self.get_connection(aws_lambda_conn_id)
         self.extra_params = self.aws_lambda_conn.extra_dejson
@@ -102,6 +103,9 @@ class AwsLambdaHook(BaseHook):
         if isinstance(version, string_types) and version != '$LATEST':
             kwargs['Qualifier'] = version
             
-        result = self.connection.invoke(**kwargs)
+        try:
+            result = self.connection.invoke(**kwargs)
+        except ClientError as ex:
+            raise AirflowException(str(ex))
         return result
     

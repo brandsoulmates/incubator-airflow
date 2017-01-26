@@ -91,6 +91,7 @@ _operators = {
     'slack_operator': ['SlackAPIOperator', 'SlackAPIPostOperator'],
     'generic_transfer': ['GenericTransfer'],
     'oracle_operator': ['OracleOperator'],
+    'sqs_operator': ['SQSOperator'],
     'aws_lambda_operator': ['AwsLambdaOperator']
 }
 
