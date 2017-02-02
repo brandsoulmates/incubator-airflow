@@ -29,6 +29,7 @@ import functools
 import getpass
 import imp
 import importlib
+import inspect
 import zipfile
 import jinja2
 import json
@@ -80,8 +81,6 @@ from airflow.utils.trigger_rule import TriggerRule
 
 Base = declarative_base()
 ID_LEN = 250
-SQL_ALCHEMY_CONN = configuration.get('core', 'SQL_ALCHEMY_CONN')
-DAGS_FOLDER = os.path.expanduser(configuration.get('core', 'DAGS_FOLDER'))
 XCOM_RETURN_KEY = 'return_value'
 
 Stats = settings.Stats
@@ -94,7 +93,7 @@ try:
 except:
     pass
 
-if 'mysql' in SQL_ALCHEMY_CONN:
+if 'mysql' in settings.SQL_ALCHEMY_CONN:
     LongText = LONGTEXT
 else:
     LongText = Text
@@ -164,7 +163,7 @@ class DagBag(BaseDagBag, LoggingMixin):
             executor=DEFAULT_EXECUTOR,
             include_examples=configuration.getboolean('core', 'LOAD_EXAMPLES')):
 
-        dag_folder = dag_folder or DAGS_FOLDER
+        dag_folder = dag_folder or settings.DAGS_FOLDER
         self.logger.info("Filling up the DagBag from {}".format(dag_folder))
         self.dag_folder = dag_folder
         self.dags = {}
@@ -307,7 +306,6 @@ class DagBag(BaseDagBag, LoggingMixin):
                     if not dag.full_filepath:
                         dag.full_filepath = filepath
                     dag.is_subdag = False
-                    dag.module_name = m.__name__
                     self.bag_dag(dag, parent_dag=dag, root_dag=dag)
                     found_dags.append(dag)
                     found_dags += dag.subdags
@@ -367,7 +365,6 @@ class DagBag(BaseDagBag, LoggingMixin):
         for subdag in dag.subdags:
             subdag.full_filepath = dag.full_filepath
             subdag.parent_dag = dag
-            subdag.fileloc = root_dag.full_filepath
             subdag.is_subdag = True
             self.bag_dag(subdag, parent_dag=dag, root_dag=root_dag)
         self.logger.debug('Loaded DAG {dag}'.format(**locals()))
@@ -2658,6 +2655,8 @@ class DAG(BaseDag, LoggingMixin):
         self._pickle_id = None
 
         self._description = description
+        # set file location to caller source path
+        self.fileloc = inspect.getsourcefile(inspect.stack()[1][0])
         self.task_dict = dict()
         self.start_date = start_date
         self.end_date = end_date
@@ -2855,7 +2854,7 @@ class DAG(BaseDag, LoggingMixin):
         """
         File location of where the dag object is instantiated
         """
-        fn = self.full_filepath.replace(DAGS_FOLDER + '/', '')
+        fn = self.full_filepath.replace(settings.DAGS_FOLDER + '/', '')
         fn = fn.replace(os.path.dirname(__file__) + '/', '')
         return fn
 
@@ -3355,7 +3354,7 @@ class DAG(BaseDag, LoggingMixin):
             orm_dag = DagModel(dag_id=dag.dag_id)
             logging.info("Creating ORM DAG for %s",
                          dag.dag_id)
-        orm_dag.fileloc = dag.full_filepath
+        orm_dag.fileloc = dag.fileloc
         orm_dag.is_subdag = dag.is_subdag
         orm_dag.owners = owner
         orm_dag.is_active = True
