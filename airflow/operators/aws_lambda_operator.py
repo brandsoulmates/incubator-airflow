@@ -10,6 +10,7 @@ from airflow.hooks.aws_lambda_hook import AwsLambdaHook
 from airflow.models import BaseOperator
 from airflow.utils.decorators import apply_defaults
 import time
+from datetime import timedelta
 
 class AwsLambdaOperator(BaseOperator):
     """
@@ -39,6 +40,7 @@ class AwsLambdaOperator(BaseOperator):
             aws_lambda_conn_id = 'aws_default',
             version=None,
             invocation_type = None,
+            xcom_push = None,
             *args, **kwargs):
         """
         Start by just invoking something.
@@ -46,6 +48,10 @@ class AwsLambdaOperator(BaseOperator):
         event, function_name, version='$LATEST', invocation_type = 'Event'
         """
         super(AwsLambdaOperator, self).__init__(*args, **kwargs)
+        
+        #Lambdas can't run for more than 5 minutes.
+        self.execution_timeout = min(self.execution_timeout,timedelta(seconds = 310))
+        
         self.event = event_json
         self.function_name = function_name
         self.version = version if version else '$LATEST'
@@ -60,14 +66,14 @@ class AwsLambdaOperator(BaseOperator):
         logging.info('Invoking lambda function '+self.function_name+\
                      ' with version '+self.version)
         hook = AwsLambdaHook(aws_lambda_conn_id = self.aws_lambda_conn_id)
-        time.sleep(10)
         result = hook.invoke_function(self.event,
                              self.function_name,
                              self.version,
                              self.invocation_type)
         
         logging.info(str(result))
-        return result
+        if self.xcom_push_flag or self.invocation_type == 'RequestResponse':
+            return result
 
     def on_kill(self):
         logging.info('Function finished execution')

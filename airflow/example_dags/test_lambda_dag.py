@@ -15,12 +15,12 @@ default_args = {
     'email_on_failure': False,
     'email_on_retry': False,
     'retries': 1,
-    'retry_delay': timedelta(minutes=5),
+    'retry_delay': timedelta(minutes=1),
     'start_date':seven_days_ago,
     # 'pool': 'backfill',
     # 'priority_weight': 10,
     # 'wait_for_downstream': False,
-    'execution_timeout': timedelta(seconds=5),
+    'execution_timeout': timedelta(seconds=300),
     # 'on_failure_callback': some_function,
     # 'on_success_callback': some_other_function,
     # 'on_retry_callback': another_function,
@@ -68,7 +68,8 @@ user_event["payload"] = {"max_pages": 2,
                "get_channel_posts":1}
 user_event["type"] = "user"
 
-dag = DAG('lambda_test', default_args=default_args)
+dag = DAG('lambda_test', default_args=default_args,
+          schedule_interval="@once")
 
 # t2 depends on t1
 t1 = AwsLambdaOperator(
@@ -81,20 +82,13 @@ t1 = AwsLambdaOperator(
     dag=dag)
 
 
-user_event["type"] = "reaction"
-user_event["payload"] = {"oids":[],
-                       "max_calls":2}
-
-#user_res = json.loads("""{{ t1.xcom_pull(task_ids='get_user_and_posts') }}""")
-
 t2 = AwsLambdaOperator(
     task_id='get_post_engagements',
-    event_json={'my_param': 'Parameter I passed in'},
+    event_json=user_event,
     function_name='jmolle-testfunction',
     aws_lambda_conn_id = 'aws_default',
     version=None,
     invocation_type = 'RequestResponse',
-    retries=3,
     dag=dag)
 
 t2.set_upstream(t1)
