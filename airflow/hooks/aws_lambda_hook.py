@@ -13,14 +13,14 @@
 # limitations under the License.
 
 from __future__ import division
-from future import standard_library
-from botocore.exceptions import ClientError
-standard_library.install_aliases()
-import json
+#from future import standard_library
+#standard_library.install_aliases()
 from six import string_types
 from yaml import load
+import json
 import logging
 import boto3
+from botocore.exceptions import ClientError
 
 boto3.set_stream_logger('boto3')
 logging.getLogger("boto3").setLevel(logging.INFO)
@@ -95,7 +95,7 @@ class AwsLambdaHook(BaseHook):
         """
         invokes a lambda function with the event object as the passed event.
         """
-        
+        result = None
         kwargs = {'FunctionName':function_name,
                   'InvocationType':invocation_type,
                   'Payload':self.package_event(event)}

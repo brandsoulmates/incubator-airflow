@@ -9,6 +9,7 @@ import logging
 from airflow.hooks.aws_lambda_hook import AwsLambdaHook
 from airflow.models import BaseOperator
 from airflow.utils.decorators import apply_defaults
+import time
 
 class AwsLambdaOperator(BaseOperator):
     """
@@ -59,12 +60,14 @@ class AwsLambdaOperator(BaseOperator):
         logging.info('Invoking lambda function '+self.function_name+\
                      ' with version '+self.version)
         hook = AwsLambdaHook(aws_lambda_conn_id = self.aws_lambda_conn_id)
+        time.sleep(10)
         result = hook.invoke_function(self.event,
                              self.function_name,
                              self.version,
                              self.invocation_type)
         
         logging.info(str(result))
+        return result
 
     def on_kill(self):
         logging.info('Function finished execution')

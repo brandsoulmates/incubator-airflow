@@ -17,39 +17,84 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=5),
     'start_date':seven_days_ago,
+    # 'pool': 'backfill',
+    # 'priority_weight': 10,
+    # 'wait_for_downstream': False,
+    'execution_timeout': timedelta(seconds=5),
+    # 'on_failure_callback': some_function,
+    # 'on_success_callback': some_other_function,
+    # 'on_retry_callback': another_function,
+    # 'trigger_rule': u'all_success'
 }
+
+user_event = {
+    "payload":{},
+    "type": None,
+    "config_paths": {
+        "api": {
+            "endpoints": {
+                "object_endpoint": "{id}",
+                "engagements_endpoint": "{id}/{engagement_type}",
+                "recent_posts_endpoint": "{id}/posts",
+                "private_posts_endpoint": "{id}/promotable_posts",
+                "insights_endpoint": "{id}/insights"
+            },
+            "api_config":{
+                "api_url":"https://graph.facebook.com/{api_ver}/",
+                "network_name":"facebook",
+                "policy_engine":"single_token",
+                "policy": {
+                    "network_name": "facebook",
+                    "policy": {
+                        "max": 200,
+                        "window": 15,
+                        "min": 10
+                        },
+                    "key": "ayz-cars/fb-quiz-tokens/86753a09e"
+                    },
+                "producer_type":"s3"
+            }
+            
+        },
+        "producer": {
+            "bucket":"analytics-raw-json"
+        }
+    },
+    "call_priority": "analytics"
+}
+
+user_event["payload"] = {"max_pages": 2,
+               "channel_ids":['10108478465469099'],
+               "get_channel_posts":1}
+user_event["type"] = "user"
 
 dag = DAG('lambda_test', default_args=default_args)
 
-# t1, t2 and t3 are examples of tasks created by instantiating operators
+# t2 depends on t1
 t1 = AwsLambdaOperator(
-    task_id='fail_a_lambda_1',                   
-    event_json={'my_param': 'Parameter I passed in'},
-    function_name='function_name',
+    task_id='get_user_and_posts',                   
+    event_json=user_event,
+    function_name='jmolle-testfunction',
     aws_lambda_conn_id = 'aws_default',
     version=None,
     invocation_type = 'RequestResponse',
     dag=dag)
 
+
+user_event["type"] = "reaction"
+user_event["payload"] = {"oids":[],
+                       "max_calls":2}
+
+#user_res = json.loads("""{{ t1.xcom_pull(task_ids='get_user_and_posts') }}""")
+
 t2 = AwsLambdaOperator(
-    task_id='fail_a_lambda_2',
+    task_id='get_post_engagements',
     event_json={'my_param': 'Parameter I passed in'},
-    function_name='function_name',
+    function_name='jmolle-testfunction',
     aws_lambda_conn_id = 'aws_default',
     version=None,
     invocation_type = 'RequestResponse',
     retries=3,
     dag=dag)
 
-
-t3 = AwsLambdaOperator(
-    task_id='fail_a_lambda_3',
-    event_json={'my_param': 'Parameter I passed in'},
-    function_name='function_name',
-    aws_lambda_conn_id = 'aws_default',
-    version=None,
-    invocation_type = 'RequestResponse',
-    dag=dag)
-
 t2.set_upstream(t1)
-t3.set_upstream(t1)
