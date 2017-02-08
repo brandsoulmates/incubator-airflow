@@ -75,31 +75,35 @@ class RedshiftToS3Transfer(BaseOperator):
 
         logging.info("Retrieving headers from %s.%s..." % (self.schema, self.table))
 
-        columns_query = """SELECT column_name
-                            FROM information_schema.columns
-                            WHERE table_schema = '{0}'
-                            AND   table_name = '{1}'
-                            ORDER BY ordinal_position
-                        """.format(self.schema, self.table)
+        # columns_query = """SELECT column_name, data_type
+        #                     FROM information_schema.columns
+        #                     WHERE table_schema = '{0}'
+        #                     AND   table_name = '{1}'
+        #                     ORDER BY ordinal_position
+        #                 """.format(self.schema, self.table)
 
-        cursor = self.hook.get_conn().cursor()
-        cursor.execute(columns_query)
-        rows = cursor.fetchall()
-        columns = map(lambda row: row[0], rows)
-        column_names = (', ').join(map(lambda c: "\\'{0}\\'".format(c), columns))
-        column_castings = (', ').join(map(lambda c: "CAST({0} AS text) AS {0}".format(c),
-                                            columns))
+        # cursor = self.hook.get_conn().cursor()
+        # cursor.execute(columns_query)
+        # rows = cursor.fetchall()
+        # columns = map(lambda row: row[0], rows)
+        # column_names = (', ').join(map(lambda c: "\\'{0}\\'".format(c), columns))
+        # column_castings = (', ').join(map(lambda c: "CAST({0} AS text) AS {0}".format(c),
+        #                                   columns))
+
+        # SELECT *
+        # UNION ALL
+        column_names = None
+        column_castings = None
 
         unload_query = """
-                        UNLOAD ('SELECT {0}
-                        UNION ALL
-                        SELECT {1} FROM {2}.{3}')
+                        UNLOAD ('SELECT *
+                        FROM {2}.{3}')
                         TO 's3://{4}/{5}/{3}_'
                         with
                         credentials 'aws_access_key_id={6};aws_secret_access_key={7}'
                         {8};
                         """.format(column_names, column_castings, self.schema, self.table,
-                                self.s3_bucket, self.s3_key, a_key, s_key, unload_options)
+                                   self.s3_bucket, self.s3_key, a_key, s_key, unload_options)
 
         logging.info('Executing UNLOAD command...')
         self.hook.run(unload_query, self.autocommit)

@@ -92,6 +92,7 @@ _operators = {
     'generic_transfer': ['GenericTransfer'],
     'oracle_operator': ['OracleOperator'],
     'sqs_operator': ['SQSOperator'],
+    'view_operator': ['ViewOperator'],
 }
 
 import os as _os
