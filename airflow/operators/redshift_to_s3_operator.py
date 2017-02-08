@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import logging
-
+from datetime import datetime
 from airflow.hooks.postgres_hook import PostgresHook
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import BaseOperator
@@ -94,17 +94,18 @@ class RedshiftToS3Transfer(BaseOperator):
         # UNION ALL
         column_names = None
         column_castings = None
-
+        date_dir = datetime.today().strftime("%Y%m%d")
         unload_query = """
                         UNLOAD ('SELECT *
                         FROM {2}.{3}')
-                        TO 's3://{4}/{5}/{3}_'
+                        TO 's3://{4}/{5}/{9}/{3}_'
                         with
                         credentials 'aws_access_key_id={6};aws_secret_access_key={7}'
                         {8};
                         """.format(column_names, column_castings, self.schema, self.table,
-                                   self.s3_bucket, self.s3_key, a_key, s_key, unload_options)
+                                   self.s3_bucket, self.s3_key, a_key, s_key, unload_options, date_dir)
 
         logging.info('Executing UNLOAD command...')
         self.hook.run(unload_query, self.autocommit)
         logging.info("UNLOAD command complete...")
+
