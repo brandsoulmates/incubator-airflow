@@ -9,8 +9,8 @@ import logging
 from airflow.hooks.aws_lambda_hook import AwsLambdaHook
 from airflow.models import BaseOperator
 from airflow.utils.decorators import apply_defaults
-import time
 from datetime import timedelta
+import json
 
 class AwsLambdaOperator(BaseOperator):
     """
@@ -51,11 +51,12 @@ class AwsLambdaOperator(BaseOperator):
         
         #Lambdas can't run for more than 5 minutes.
         self.execution_timeout = min(self.execution_timeout,timedelta(seconds = 310))
-        
+        self.xcom_push_flag = xcom_push
         self.event = event_json
         self.function_name = function_name
         self.version = version if version else '$LATEST'
-        self.invocation_type = invocation_type if invocation_type else 'Event'
+        self.invocation_type = invocation_type if invocation_type is not None\
+                                else 'Event'
         self.aws_lambda_conn_id = aws_lambda_conn_id
 
     def execute(self, context):
@@ -65,13 +66,27 @@ class AwsLambdaOperator(BaseOperator):
         """
         logging.info('Invoking lambda function '+self.function_name+\
                      ' with version '+self.version)
+        
         hook = AwsLambdaHook(aws_lambda_conn_id = self.aws_lambda_conn_id)
         result = hook.invoke_function(self.event,
                              self.function_name,
                              self.version,
                              self.invocation_type)
+        result_payload = {}
         
-        logging.info(str(result))
+        try:
+            result_payload = result["Payload"].read()
+            result["Payload"] = json.loads(result_payload)
+        except KeyError:
+            
+            result["Payload"] = {}
+        
+        # Record the results of the invocation
+        logging.info(self.invocation_type)
+        logging.info(result)
+        logging.info(json.loads(result_payload))
+        logging.info(result["Payload"])
+        
         if self.xcom_push_flag or self.invocation_type == 'RequestResponse':
             return result
 

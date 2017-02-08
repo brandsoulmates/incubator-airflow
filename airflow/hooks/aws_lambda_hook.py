@@ -91,7 +91,7 @@ class AwsLambdaHook(BaseHook):
             aws_secret_access_key=s_key            )
         return connection
 
-    def invoke_function(self, event, function_name, version='$LATEST', invocation_type = 'Event'):
+    def invoke_function(self, event, function_name, version, invocation_type):
         """
         invokes a lambda function with the event object as the passed event.
         """
