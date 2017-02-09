@@ -101,7 +101,8 @@ class RedshiftToS3Transfer(BaseOperator):
                         TO 's3://{4}/{5}/{9}/{10}/{3}/{3}_'
                         with
                         credentials 'aws_access_key_id={6};aws_secret_access_key={7}'
-                        {8};
+                        {8}
+                        delimiter '|' addquotes escape allowoverwrite;
                         """.format(column_names, column_castings, self.schema, self.table,
                                    self.s3_bucket, self.s3_key, a_key, s_key, unload_options, date_dir)
 
