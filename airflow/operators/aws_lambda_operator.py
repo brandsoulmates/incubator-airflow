@@ -7,7 +7,7 @@ Author: jmolle
 import logging
 
 from airflow.hooks.aws_lambda_hook import AwsLambdaHook
-from airflow.models import BaseOperator
+from airflow.models import BaseOperator, TaskInstance
 from airflow.utils.decorators import apply_defaults
 from datetime import timedelta
 import json
@@ -35,8 +35,8 @@ class AwsLambdaOperator(BaseOperator):
     @apply_defaults
     def __init__(
             self,
-            event_json,
-            function_name,
+            event_json = None,
+            function_name = None,
             aws_lambda_conn_id = 'aws_default',
             version=None,
             invocation_type = None,
@@ -48,7 +48,6 @@ class AwsLambdaOperator(BaseOperator):
         event, function_name, version='$LATEST', invocation_type = 'Event'
         """
         super(AwsLambdaOperator, self).__init__(*args, **kwargs)
-        
         #Lambdas can't run for more than 5 minutes.
         self.execution_timeout = min(self.execution_timeout,timedelta(seconds = 310))
         self.xcom_push_flag = xcom_push
