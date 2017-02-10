@@ -7,7 +7,7 @@ Author: jmolle
 import logging
 
 from airflow.hooks.aws_lambda_hook import AwsLambdaHook
-from airflow.models import BaseOperator, TaskInstance
+from airflow.models import BaseOperator
 from airflow.utils.decorators import apply_defaults
 from datetime import timedelta
 import json
@@ -35,11 +35,10 @@ class AwsLambdaOperator(BaseOperator):
     @apply_defaults
     def __init__(
             self,
-            event_json = None,
+            config_source,
+            config_json = None,
             function_name = None,
             aws_lambda_conn_id = 'aws_default',
-            version=None,
-            invocation_type = None,
             xcom_push = None,
             *args, **kwargs):
         """
@@ -48,46 +47,57 @@ class AwsLambdaOperator(BaseOperator):
         event, function_name, version='$LATEST', invocation_type = 'Event'
         """
         super(AwsLambdaOperator, self).__init__(*args, **kwargs)
+        
         #Lambdas can't run for more than 5 minutes.
         self.execution_timeout = min(self.execution_timeout,timedelta(seconds = 310))
         self.xcom_push_flag = xcom_push
-        self.event = event_json
+        self.config_source = config_source
+        self.config_json = config_json
         self.function_name = function_name
-        self.version = version if version else '$LATEST'
-        self.invocation_type = invocation_type if invocation_type is not None\
-                                else 'Event'
         self.aws_lambda_conn_id = aws_lambda_conn_id
+
+    def _get_config_json(self,config_source, context):
+        """
+        Get the config from XCOM
+        """
+        
+        return self.xcom_pull(context,
+                       config_source['task_ids'],
+                       key = config_source.get('key','return_value'),
+                       include_prior_dates = False)
 
     def execute(self, context):
         """
-        Execute the bash command in a temporary directory
-        which will be cleaned afterwards
+        Execute the lambda function
         """
+        
+        if not self.config_json:
+            logging.info("getting config")
+            self.config_json = self._get_config_json(self.config_source, context)
+        else:
+            logging.info(self.config_json)
+            
+        self.event = self.config_json["event_json"]
+        if not self.function_name: self.function_name = self.config_json["function_name"]
+        self.version = self.config_json.get("version", '$LATEST')
+        self.invocation_type = self.config_json.get("invocation_type","RequestResponse")
+        
         logging.info('Invoking lambda function '+self.function_name+\
                      ' with version '+self.version)
-        
         hook = AwsLambdaHook(aws_lambda_conn_id = self.aws_lambda_conn_id)
         result = hook.invoke_function(self.event,
                              self.function_name,
                              self.version,
                              self.invocation_type)
-        result_payload = {}
-        
         try:
             result_payload = result["Payload"].read()
-            result["Payload"] = json.loads(result_payload)
-        except KeyError:
-            
-            result["Payload"] = {}
-        
-        # Record the results of the invocation
+        except:
+            result_payload = ""
         logging.info(self.invocation_type)
-        logging.info(result)
+        logging.info(str(result))
         logging.info(json.loads(result_payload))
-        logging.info(result["Payload"])
-        
         if self.xcom_push_flag or self.invocation_type == 'RequestResponse':
-            return result
+            return json.loads(result_payload)
 
     def on_kill(self):
         logging.info('Function finished execution')
