@@ -101,7 +101,7 @@ class RedshiftToS3Transfer(BaseOperator):
                         credentials 'aws_access_key_id={6};aws_secret_access_key={7}'
                         {8}
                         delimiter '|' addquotes escape allowoverwrite;
-                        """.format(column_names, column, self.schema, self.table,
+                        """.format(column_names, columns, self.schema, self.table,
                                    self.s3_bucket, self.s3_key, a_key, s_key, unload_options, date_dir)
 
         logging.info('Executing UNLOAD command...')
