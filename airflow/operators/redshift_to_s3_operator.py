@@ -93,7 +93,7 @@ class RedshiftToS3Transfer(BaseOperator):
         date_dir = datetime.today().strftime("%Y%m%d")
         unload_query = """
                         UNLOAD ('SELECT {0}
-                        UNION ALL
+                        UNION
                         SELECT *
                         FROM {2}.{3}')
                         TO 's3://{4}/{5}/{9}/{3}/{3}_'
