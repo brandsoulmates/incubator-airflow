@@ -87,7 +87,7 @@ class MySqlTest(unittest.TestCase):
                 h.bulk_load("test_airflow", t.name)
                 c.execute("SELECT dummy FROM test_airflow")
                 results = tuple(result[0] for result in c.fetchall())
-                assert sorted(records) == sorted(results)
+                self.assertEqual(sorted(results), sorted(records))
 
     def test_mysql_to_mysql(self):
         sql = "SELECT * FROM INFORMATION_SCHEMA.TABLES LIMIT 100;"
@@ -113,6 +113,27 @@ class MySqlTest(unittest.TestCase):
             sql="SELECT count(1) FROM INFORMATION_SCHEMA.TABLES",
             dag=self.dag)
         t.run(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE, ignore_ti_state=True)
+
+    def test_overwrite_schema(self):
+        """
+        Verifies option to overwrite connection schema
+        """
+        import airflow.operators.mysql_operator
+
+        sql = "SELECT 1;"
+        t = operators.mysql_operator.MySqlOperator(
+            task_id='test_mysql_operator_test_schema_overwrite',
+            sql=sql,
+            dag=self.dag,
+            database="foobar",
+        )
+
+        from _mysql_exceptions import OperationalError
+        try:
+            t.run(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE,
+                  ignore_ti_state=True)
+        except OperationalError as e:
+            assert "Unknown database 'foobar'" in str(e)
 
 
 @skipUnlessImported('airflow.operators.postgres_operator', 'PostgresOperator')
@@ -192,6 +213,28 @@ class PostgresTest(unittest.TestCase):
             dag=self.dag,
             autocommit=True)
         t.run(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE, ignore_ti_state=True)
+
+    def test_overwrite_schema(self):
+        """
+        Verifies option to overwrite connection schema
+        """
+        import airflow.operators.postgres_operator
+
+        sql = "SELECT 1;"
+        t = operators.postgres_operator.PostgresOperator(
+            task_id='postgres_operator_test_schema_overwrite',
+            sql=sql,
+            dag=self.dag,
+            autocommit=True,
+            database="foobar",
+        )
+
+        from psycopg2._psycopg import OperationalError
+        try:
+            t.run(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE,
+                  ignore_ti_state=True)
+        except OperationalError as e:
+            assert 'database "foobar" does not exist' in str(e)
 
 
 @skipUnlessImported('airflow.operators.hive_operator', 'HiveOperator')
