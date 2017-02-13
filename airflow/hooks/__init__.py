@@ -55,6 +55,7 @@ _hooks = {
     'mssql_hook': ['MsSqlHook'],
     'oracle_hook': ['OracleHook'],
     'sqs_hook': ['SQSHook'],
+    'aws_lambda_hook': ['AwsLambdaHook']
 }
 
 import os as _os
