@@ -93,6 +93,7 @@ _operators = {
     'oracle_operator': ['OracleOperator'],
     'sqs_operator': ['SQSOperator'],
     'view_operator': ['ViewOperator'],
+    'aws_lambda_operator': ['AwsLambdaOperator']
 }
 
 import os as _os
