@@ -10,6 +10,7 @@ from airflow.hooks.aws_lambda_hook import AwsLambdaHook
 from airflow.models import BaseOperator
 from airflow.utils.decorators import apply_defaults
 from datetime import timedelta
+from airflow.exceptions import AirflowException
 import json
 
 
@@ -33,12 +34,18 @@ class AwsLambdaOperator(BaseOperator):
 
     ui_color = '#f0ede4'
 
+    DEFAULT_CONFIG = {
+        'task_ids': None,
+        'end_point': None,
+        'xcom_num': None,
+        'payload':  []
+    }
+
     @apply_defaults
     def __init__(
             self,
-            config_source,
-            config_json=None,
-            function_name=None,
+            # function_name,
+            config_json,
             aws_lambda_conn_id='aws_default',
             xcom_push=None,
             *args, **kwargs):
@@ -50,22 +57,31 @@ class AwsLambdaOperator(BaseOperator):
         super(AwsLambdaOperator, self).__init__(*args, **kwargs)
 
         # Lambdas can't run for more than 5 minutes.
-        self.execution_timeout = min(self.execution_timeout, timedelta(seconds=310))
+        # self.execution_timeout = min(self.execution_timeout, timedelta(seconds=310))
         self.xcom_push_flag = xcom_push
-        self.config_source = config_source
         self.config_json = config_json
-        self.function_name = function_name
+
+        # self.function_name = function_name
         self.aws_lambda_conn_id = aws_lambda_conn_id
 
-    def _get_config_json(self, config_source, context):
+    def _get_config_json(self, context):
         """
         Get the config from XCOM
         """
-
-        return self.xcom_pull(context,
-                              config_source['task_ids'],
-                              key=config_source.get('key', 'return_value'),
-                              include_prior_dates=False)
+        logging.info("\n==============================\n")
+        logging.info(self.config_json.get(
+            self.config_json['xcom_num'], 'return_value'))
+        logging.info("\n==============================\n")
+        logging.info(self.config_json['task_ids'])
+        logging.info("\n==============================\n")
+        val = self.xcom_pull(context,
+                             self.config_json['task_ids'],
+                             key=self.config_json.get(
+                                 'xcom_num', 'return_value'),
+                             include_prior_dates=False)
+        logging.info(val)
+        logging.info("\n==============================\n")
+        return val
 
     def execute(self, context):
         """
@@ -73,11 +89,15 @@ class AwsLambdaOperator(BaseOperator):
         """
 
         if not self.config_json:
-            logging.info("getting config")
-            self.config_json = self._get_config_json(self.config_source, context)
-            print self.config_json
-        # else:
-        #     logging.info(self.config_json)
+            raise AirflowException
+
+        logging.info("getting config")
+        logging.info(self.config_json["xcom_num"])
+        # initialize payload
+        self.config_json['payload'] = {}
+        # Add payload
+        self.config_json['payload']['ids'] = self._get_config_json(context)
+        logging.info(self.config_json)
 
         # self.event = self.config_json["event_json"]
         # if not self.function_name:
