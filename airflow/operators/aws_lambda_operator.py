@@ -10,8 +10,9 @@ from airflow.hooks.aws_lambda_hook import AwsLambdaHook
 from airflow.models import BaseOperator
 from airflow.utils.decorators import apply_defaults
 from datetime import timedelta
-from airflow.exceptions import AirflowException
 import json
+from airflow.exceptions import AirflowException
+from six import string_types
 
 
 class AwsLambdaOperator(BaseOperator):
@@ -28,24 +29,19 @@ class AwsLambdaOperator(BaseOperator):
 
         Eventually I'd like to make this more invisible, so the operator can launch sets
         of functions.
-
     :type invocation_type: string
     """
 
     ui_color = '#f0ede4'
 
-    DEFAULT_CONFIG = {
-        'task_ids': None,
-        'end_point': None,
-        'xcom_num': None,
-        'payload':  []
-    }
-
     @apply_defaults
     def __init__(
             self,
-            # function_name,
-            config_json,
+            function_name,
+            function_version="$LATEST",
+            invocation_type="RequestResponse",
+            event_xcoms=None,
+            event_json={},
             aws_lambda_conn_id='aws_default',
             xcom_push=None,
             *args, **kwargs):
@@ -55,72 +51,78 @@ class AwsLambdaOperator(BaseOperator):
         event, function_name, version='$LATEST', invocation_type = 'Event'
         """
         super(AwsLambdaOperator, self).__init__(*args, **kwargs)
-
         # Lambdas can't run for more than 5 minutes.
-        # self.execution_timeout = min(self.execution_timeout, timedelta(seconds=310))
+        self.execution_timeout = min(self.execution_timeout, timedelta(seconds=365))
         self.xcom_push_flag = xcom_push
-        self.config_json = config_json
-
-        # self.function_name = function_name
+        self.event_xcoms = event_xcoms
+        self.event_json = event_json
+        self.function_name = function_name
         self.aws_lambda_conn_id = aws_lambda_conn_id
+        self.invocation_type = invocation_type
+        self.function_version = function_version
 
-    def _get_config_json(self, context):
+    def _add_dict_to_event_(self, event_dict, xcom_dict):
+        """
+        Adds the xcom message to the existing event.
+        Recursive. Oooga Booga.
+            - Passes pointers to the current position in both objects.
+            - DFS graph traversal: nobody wants to make a duplicate stack.
+            - Runs in time N, where N is the total number of keys in xcom_dict.
+        """
+        for key in xcom_dict:
+            # exceptions in this case are half the speed, so I'm writing ugly code.
+            if isinstance(xcom_dict, dict) and isinstance(event_dict, dict) and\
+                    (key in event_dict):
+                self._add_dict_to_event_(event_dict[key], xcom_dict[key])
+            else:
+                event_dict[key] = xcom_dict[key]
+
+    def _load_xcoms_into_event(self, context):
         """
         Get the config from XCOM
         """
-        logging.info("\n==============================\n")
-        logging.info(self.config_json.get(
-            self.config_json['xcom_num'], 'return_value'))
-        logging.info("\n==============================\n")
-        logging.info(self.config_json['task_ids'])
-        logging.info("\n==============================\n")
-        val = self.xcom_pull(context,
-                             self.config_json['task_ids'],
-                             key=self.config_json.get(
-                                 'xcom_num', 'return_value'),
-                             include_prior_dates=False)
-        logging.info(val)
-        logging.info("\n==============================\n")
-        return val
+
+        for task_xcom in self.event_xcoms:
+            xcom_result = self.xcom_pull(context,
+                                         task_xcom['task_id'],
+                                         key=task_xcom.get('key', 'return_value'),
+                                         include_prior_dates=False)
+            if isinstance(xcom_result, string_types):
+                xcom_result = json.loads(xcom_result)
+            elif isinstance(xcom_result, dict):
+                self._add_dict_to_event_(self.event_json, xcom_result)
+            else:
+                logging.error(xcom_result)
+                raise AirflowException("Unable to read XCom from " + str(task_xcom) +
+                                       ", improper format " + str(type(xcom_result)))
 
     def execute(self, context):
         """
         Execute the lambda function
         """
+        if self.event_xcoms:
+            self._load_xcoms_into_event(context)
 
-        if not self.config_json:
-            raise AirflowException
+        logging.info(self.event_json)
+        logging.info('Invoking lambda function ' + str(self.function_name) +
+                     ' with version ' + str(self.function_version))
+        logging.info(self.invocation_type)
 
-        logging.info("getting config")
-        logging.info(self.config_json["xcom_num"])
-        # initialize payload
-        self.config_json['payload'] = {}
-        # Add payload
-        self.config_json['payload']['ids'] = self._get_config_json(context)
-        logging.info(self.config_json)
-
-        # self.event = self.config_json["event_json"]
-        # if not self.function_name:
-        #     self.function_name = self.config_json["function_name"]
-        # self.version = self.config_json.get("version", '$LATEST')
-        # self.invocation_type = self.config_json.get("invocation_type", "RequestResponse")
-
-        # logging.info('Invoking lambda function ' + self.function_name +
-        #              ' with version ' + self.version)
-        # hook = AwsLambdaHook(aws_lambda_conn_id=self.aws_lambda_conn_id)
-        # result = hook.invoke_function(self.event,
-        #                               self.function_name,
-        #                               self.version,
-        #                               self.invocation_type)
-        # try:
-        #     result_payload = result["Payload"].read()
-        # except:
-        #     result_payload = ""
-        # logging.info(self.invocation_type)
-        # logging.info(str(result))
-        # logging.info(json.loads(result_payload))
-        # if self.xcom_push_flag or self.invocation_type == 'RequestResponse':
-        #     return json.loads(result_payload)
+        hook = AwsLambdaHook(aws_lambda_conn_id=self.aws_lambda_conn_id)
+        result = hook.invoke_function(self.event_json,
+                                      self.function_name,
+                                      self.function_version,
+                                      self.invocation_type)
+        result_payload = ""
+        if self.xcom_push_flag or self.invocation_type == 'RequestResponse':
+            try:
+                result_payload = result["Payload"].read()
+                logging.info(result_payload)
+                return json.loads(result_payload)
+            except:
+                raise AirflowException("Lambda function " +
+                                       +str(self.function_name) + " crashed.")
+        logging.info(str(result))
 
     def on_kill(self):
         logging.info('Function finished execution')
