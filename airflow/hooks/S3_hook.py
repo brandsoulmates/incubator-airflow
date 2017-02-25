@@ -15,6 +15,7 @@
 from __future__ import division
 from future import standard_library
 standard_library.install_aliases()
+
 import logging
 import re
 import fnmatch
@@ -93,6 +94,7 @@ class S3Hook(BaseHook):
     """
     Interact with S3. This class is a wrapper around the boto library.
     """
+
     def __init__(
             self,
             s3_conn_id='s3_default'):
@@ -161,8 +163,8 @@ class S3Hook(BaseHook):
         a_key = s_key = None
         if self._creds_in_config_file:
             a_key, s_key, calling_format = _parse_s3_config(self.s3_config_file,
-                                                self.s3_config_format,
-                                                self.profile)
+                                                            self.s3_config_format,
+                                                            self.profile)
         elif self._creds_in_conn:
             a_key = self._a_key
             s_key = self._s_key
@@ -178,14 +180,14 @@ class S3Hook(BaseHook):
             assumed_role_object = sts_connection.assume_role(
                 role_arn=self.role_arn,
                 role_session_name="Airflow_" + self.s3_conn_id
-                )
+            )
             creds = assumed_role_object.credentials
             connection = S3Connection(
                 aws_access_key_id=creds.access_key,
                 aws_secret_access_key=creds.secret_key,
                 calling_format=calling_format,
                 security_token=creds.session_token
-                )
+            )
         else:
             connection = S3Connection(aws_access_key_id=a_key,
                                       aws_secret_access_key=s_key,
@@ -423,3 +425,14 @@ class S3Hook(BaseHook):
                                                     encrypt_key=encrypt)
         logging.info("The key {key} now contains"
                      " {key_size} bytes".format(**locals()))
+
+    def download_file(self,
+                      bucket_name,
+                      key,
+                      download_location):
+        if not bucket_name:
+            (bucket_name, key) = self.parse_s3_url(key)
+
+        bucket = self.get_bucket(bucket_name)
+        key_obj = bucket.get_key(key)
+        key_obj.get_contents_to_filename(download_location)
