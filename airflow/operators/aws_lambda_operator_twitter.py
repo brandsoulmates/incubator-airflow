@@ -47,6 +47,7 @@ class TwitterLambdaOperator(BaseOperator):
             aws_lambda_conn_id='aws_default',
             xcom_push=None,
             function_version="$LATEST",
+            invocation_type="RequestResponse",
             *args, **kwargs):
         """
         Start by just invoking something.
@@ -56,11 +57,12 @@ class TwitterLambdaOperator(BaseOperator):
         super(TwitterLambdaOperator, self).__init__(*args, **kwargs)
 
         # Lambdas can't run for more than 5 minutes.
-        self.execution_timeout = min(self.execution_timeout, timedelta(seconds=310))
+        # This is causing an error
+        # self.execution_timeout = min(self.execution_timeout, timedelta(seconds=365))
         self.xcom_push_flag = xcom_push
         self.config_json = config_json
-
-        # self.function_name = function_name
+        self.function_name = function_name
+        self.invocation_type = invocation_type
         self.aws_lambda_conn_id = aws_lambda_conn_id
 
     def _get_config_json(self, context):
@@ -84,6 +86,7 @@ class TwitterLambdaOperator(BaseOperator):
 
         # initialize payload
         self.config_json['payload'] = {}
+
         # Add payload
         self.config_json['payload']['ids'] = self._get_config_json(context)
         hook = AwsLambdaHook(aws_lambda_conn_id=self.aws_lambda_conn_id)
