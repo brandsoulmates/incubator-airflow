@@ -11,16 +11,18 @@ class SQSOperator3(BaseOperator):
                  messages = None,
                  num_msgs = 10,
                  chunk_size = None,
-                 queue=None, 
-                 request_type="receive", # receive, pop, send
                  receipt_handles = None,
+                 region_name = None,
+                 request_type="receive", # receive, pop, send
+                 sqs_queue=None, 
                  aws_lambda_conn_id = 'aws_default',
                  *args, **kwargs):
         
         super(SQSOperator3, self).__init__(*args, **kwargs)
         
-        self.queue = queue
+        self.sqs_queue_name = sqs_queue
         self.chunk_size = chunk_size
+        self.region_name = region_name
         self.aws_lambda_conn_id = aws_lambda_conn_id
         self.request_type = request_type
         self.exec_args = {
@@ -32,7 +34,8 @@ class SQSOperator3(BaseOperator):
 
     def execute(self, context):
         
-        self.sh = AwsSqsHook3(self.queue, sqs_conn_id = self.aws_lambda_conn_id)
+        self.sh = AwsSqsHook3(self.sqs_queue_name, sqs_conn_id = self.aws_lambda_conn_id,
+                              region_name = self.region_name)
         try:
             resp = getattr(self.sh,self.request_type+"_messages")(**self.exec_args)
             if self.chunk_size:
