@@ -32,14 +32,16 @@ def _parse_lambda_config(config_filename):
     
     with open(config_filename,'r') as yamlfile:
         config_dict = load(yamlfile)
-    return config_dict['aws_access_key_id'], config_dict['aws_secret_access_key']
+    return config_dict['aws_access_key_id'], config_dict['aws_secret_access_key'],\
+        config_dict['region_name']
 
 class AwsLambdaHook(BaseHook):
     """
     Interact with Λ. This class is a wrapper around the boto library.
     """
-    def __init__(self, aws_lambda_conn_id='aws_default'):
+    def __init__(self, aws_lambda_conn_id='aws_default', region_name = None):
         self.aws_lambda_conn_id = aws_lambda_conn_id
+        self.region_name = region_name
         self.aws_lambda_conn = self.get_connection(aws_lambda_conn_id)
         self.extra_params = self.aws_lambda_conn.extra_dejson
         self.profile = self.extra_params.get('profile')
@@ -48,6 +50,7 @@ class AwsLambdaHook(BaseHook):
         if self._creds_in_conn:
             self._a_key = self.extra_params['aws_access_key_id']
             self._s_key = self.extra_params['aws_secret_access_key']
+            if not self.region_name: self.region_name = self.extra_params['region_name']
         elif self._creds_in_config_file:
             self.lambda_config_file = self.extra_params['aws_config_file']
         else:
@@ -71,9 +74,14 @@ class AwsLambdaHook(BaseHook):
         
         # For now, we just serialize it.
         try:
-            return json.dumps(event)
+            if isinstance(event, dict):
+                return json.dumps(event)
+            elif isinstance(event, string_types):
+                return event
+            else:
+                raise AirflowException("Event format incorrect!")
         except:
-            raise AirflowException("event dict unable to be serialized as JSON!")
+            raise AirflowException("Event dict unable to be serialized as JSON!")
 
     def get_conn(self):
         """
@@ -81,14 +89,19 @@ class AwsLambdaHook(BaseHook):
         """
         a_key = s_key = None
         if self._creds_in_config_file:
-            a_key, s_key = _parse_lambda_config(self.lambda_config_file)
+            a_key, s_key, region_name = _parse_lambda_config(self.lambda_config_file)
         elif self._creds_in_conn:
             a_key = self._a_key
             s_key = self._s_key
+            
+        if self.region_name:    
+            region_name = self.region_name
 
         connection = boto3.client('lambda',
             aws_access_key_id=a_key,
-            aws_secret_access_key=s_key            )
+            aws_secret_access_key=s_key,
+            region_name = region_name 
+            )
         return connection
 
     def invoke_function(self, event, function_name, version, invocation_type):
