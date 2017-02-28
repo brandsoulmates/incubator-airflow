@@ -1,6 +1,6 @@
 import logging
 import airflow
-import pickle
+
 from airflow.utils.decorators import apply_defaults
 from airflow.models import BaseOperator
 from airflow.hooks.sqs_hook import SQSHook
