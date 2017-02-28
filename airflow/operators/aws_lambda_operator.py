@@ -48,7 +48,8 @@ class AwsLambdaOperator(BaseOperator):
         """
         Start by just invoking something.
         args:
-        event, function_name, version='$LATEST', invocation_type = 'Event'
+        event_json, function_name, function_version='$LATEST', invocation_type = 'Event',
+        event_xcoms, xcom_push
         """
         super(AwsLambdaOperator, self).__init__(*args, **kwargs)
         # Lambdas can't run for more than 5 minutes.
