@@ -104,7 +104,7 @@ class AwsLambdaHook(BaseHook):
             )
         return connection
 
-    def invoke_function(self, event, function_name, version, invocation_type):
+    def invoke_function(self, event, function_name, function_version, invocation_type):
         """
         invokes a lambda function with the event object as the passed event.
         """
@@ -113,8 +113,9 @@ class AwsLambdaHook(BaseHook):
                   'InvocationType':invocation_type,
                   'Payload':self.package_event(event)}
         
-        if isinstance(version, string_types) and version != '$LATEST':
-            kwargs['Qualifier'] = version
+        if isinstance(function_version, string_types) and\
+                function_version != '$LATEST':
+            kwargs['Qualifier'] = function_version
             
         try:
             result = self.connection.invoke(**kwargs)
