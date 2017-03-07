@@ -64,6 +64,7 @@ class TwitterLambdaOperator(BaseOperator):
         self.function_name = function_name
         self.invocation_type = invocation_type
         self.aws_lambda_conn_id = aws_lambda_conn_id
+        self.function_version = function_version
 
     def _get_config_json(self, context):
         """
@@ -88,7 +89,9 @@ class TwitterLambdaOperator(BaseOperator):
         self.config_json['payload'] = {}
 
         # Add payload
-        self.config_json['payload']['ids'] = self._get_config_json(context)
+        if self.xcom_push_flag:
+            self.config_json['payload']['ids'] = self._get_config_json(context)
+
         hook = AwsLambdaHook(aws_lambda_conn_id=self.aws_lambda_conn_id)
         result = hook.invoke_function(self.config_json,
                                       self.function_name,
@@ -98,8 +101,13 @@ class TwitterLambdaOperator(BaseOperator):
         if self.xcom_push_flag or self.invocation_type == 'RequestResponse':
             try:
                 result_payload = result["Payload"].read()
+                function_error = result.get("function_error", None)
+                if function_error == "Handled" or function_error == "Unhandled.Handled":
+                    context['ti'].xcom_push(key="stackTrace", value=json.loads(result_payload))
+                    raise AirflowException("Lambda function " +
+                                           +str(self.function_name) + " crashed.")
                 logging.info(result_payload)
-                return json.loads(result_payload)
+                return result_payload
             except:
                 raise AirflowException("Lambda function " +
                                        +str(self.function_name) + " crashed.")

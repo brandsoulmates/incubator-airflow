@@ -23,8 +23,8 @@ class AwsLambdaOperator(BaseOperator):
     :type event_json: dict
     :param function_name: The name of the function being executed.
     :type function_name: string
-    :param version: The version or alias of the function to run.
-    :type version: string
+    :param function_version: The version or alias of the function to run.
+    :type function_version: string
     :param invocation_type: The type of callback we expect.
 
         Eventually I'd like to make this more invisible, so the operator can launch sets
