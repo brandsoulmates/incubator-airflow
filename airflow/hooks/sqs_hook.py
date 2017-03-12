@@ -7,18 +7,18 @@ import boto3
 
 class SQSHook(BaseHook):
 
-    def __init__(self, queue=None,
+    def __init__(self, queue_name=None,
                  sqs_conn_id="s3_default",
                  region="us-west-2"):
-        self.region = region
+        self.region_name = region
         self.sqs_conn_id = sqs_conn_id
         self.sqs_conn = self.get_connection(sqs_conn_id)
         self.extra_params = self.sqs_conn.extra_dejson
         self._a_key = self.extra_params['aws_access_key_id']
         self._s_key = self.extra_params['aws_secret_access_key']
 
-        if queue:
-            self.queue = queue
+        if queue_name:
+            self.queue_name = queue_name
             self._get_conn()
         else:
             print("Queue name not mentioned.")
@@ -26,9 +26,10 @@ class SQSHook(BaseHook):
     def _get_conn(self):
         self.sqs = boto3.resource('sqs',
                                   aws_access_key_id=self._a_key,
+                                  region_name=self.region_name,
                                   aws_secret_access_key=self._s_key)
         # initialize queue
-        self.q = self.sqs.get_queue_by_name(QueueName=self.queue)
+        self.q = self.sqs.get_queue_by_name(QueueName=self.queue_name)
 
     def len_queue(self):
         return self.q.count()

@@ -1,6 +1,6 @@
 import logging
 import airflow
-
+import pickle
 from airflow.utils.decorators import apply_defaults
 from airflow.models import BaseOperator
 from airflow.hooks.sqs_hook import SQSHook
@@ -9,7 +9,7 @@ from airflow.hooks.sqs_hook import SQSHook
 class SQSOperator(BaseOperator):
 
     @apply_defaults
-    def __init__(self, queue=None,
+    def __init__(self, queue_name=None,
                  max_num=10,
                  delete_on_recieve=False,
                  xcom_push=False,
@@ -19,12 +19,12 @@ class SQSOperator(BaseOperator):
         super(SQSOperator, self).__init__(*args, **kwargs)
         self.max_num = max_num
         self.xcom_push_flag = xcom_push
-        self.queue = queue
+        self.queue_name = queue_name
         self.delete_on_recieve = delete_on_recieve
         self.kwargs = kwargs
 
     def execute(self, context):
-        self.sh = SQSHook(self.queue)
+        self.sh = SQSHook(self.queue_name)
         val_complete = self.sh.receive_bulk(self.max_num,
                                             self.delete_on_recieve)
         new_vals = []

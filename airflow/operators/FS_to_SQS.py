@@ -28,6 +28,7 @@ class FileSystemToSQS(BaseOperator):
     def __init__(
             self,
             queue_names,
+            queue_sizes,
             download_file_location,
             max_size=100,
             * args, **kwargs):
@@ -36,26 +37,27 @@ class FileSystemToSQS(BaseOperator):
         self.max_size = max_size
         self.local_location = download_file_location
         self.queue_names = queue_names
+        self.queue_sizes = queue_sizes
 
     def execute(self, context):
-        queues = []
+        queues = {}
         for qn in self.queue_names:
-            queues.append(SQSHook(queue=qn))
+            queues[qn] = SQSHook(queue_name=qn)
 
         onlyfiles = [f for f in listdir(self.local_location)
                      if isfile(join(self.local_location, f))]
         # Get all files in the directory
-        for ifn in onlyfiles:
-            fn = join(self.local_location, ifn)
-            # Read the file
-            with open(fn, "r") as ins:
-                # Populate array to max length
-                array = []
-                for line in ins:
-                    array.append(line.strip())
-                    # Insert into SQS Queue
-                    if len(array) == self.max_size:
-                        for q in queues:
-                            q.send_message(','.join(array))
-                        # Remove all messages which are inserted
-                        del array[:]
+        for q in self.queue_names:
+            for ifn in onlyfiles:
+                fn = join(self.local_location, ifn)
+                # Read the file
+                with open(fn, "r") as ins:
+                    # Populate array to max length
+                    array = []
+                    for line in ins:
+                        array.append(line.strip())
+                        # Insert into SQS Queue
+                        if len(array) == self.queue_sizes[q]:
+                            queues[q].send_message(','.join(array))
+                            # Remove all messages which are inserted
+                            del array[:]
