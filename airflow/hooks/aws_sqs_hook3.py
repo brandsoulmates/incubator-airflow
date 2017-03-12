@@ -33,11 +33,15 @@ class AwsSqsHook3(BaseHook):
         # handle nulls
         chunk_size = chunk_size or 0
         
+        # Only works for strings
         if chunk_size > 1:
-            entries = [{"Id":str(pos),message_name:messages[pos:pos+chunk_size]}\
-                       for pos in range(0,len(messages),chunk_size)]
+            str_msgs = [str(msg) for msg in messages]
+            entries = [{
+                        "Id":str(pos),
+                        message_name:msg_group_delim.join(str_msgs[pos:pos+chunk_size])
+                        } for pos in range(0,len(str_msgs),chunk_size)]
         else:
-            entries = [{"Id":str(pos),message_name:messages[pos]} for pos in range(len(messages))]
+            entries = [{"Id":str(pos),message_name:str(messages[pos])} for pos in range(len(messages))]
         for chunk in [entries[pos:pos+10] for pos in range(0,len(entries),10)]:
             yield chunk
     
