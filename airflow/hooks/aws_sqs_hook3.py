@@ -168,3 +168,5 @@ class AwsSqsHook3(BaseHook):
         else:
             # Same len, no need to take the min
             return [(msg_bodies[i],receipt_handles[i]) for i in range(len(msg_bodies))]
+
+

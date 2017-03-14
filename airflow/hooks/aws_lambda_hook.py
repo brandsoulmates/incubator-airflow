@@ -20,6 +20,7 @@ from yaml import load
 import json
 import logging
 import boto3
+from botocore.config import Config
 from botocore.exceptions import ClientError
 
 boto3.set_stream_logger('boto3')
@@ -100,7 +101,9 @@ class AwsLambdaHook(BaseHook):
         connection = boto3.client('lambda',
             aws_access_key_id=a_key,
             aws_secret_access_key=s_key,
-            region_name = region_name 
+            region_name = region_name,
+            config = Config(connect_timeout = 30,
+                            read_timeout=75)
             )
         return connection
 
