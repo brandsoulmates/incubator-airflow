@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os
 from slackclient import SlackClient
 from airflow.models import BaseOperator
 from airflow.utils.decorators import apply_defaults
@@ -39,10 +39,14 @@ class SlackAPIOperator(BaseOperator):
                  token='unset',
                  method='unset',
                  api_params=None,
+                 task_xcom=None,
+                 xcom_pull=False,
                  *args, **kwargs):
         super(SlackAPIOperator, self).__init__(*args, **kwargs)
-        self.token = token
+        self.token = os.environ["SLACK_API_TOKEN"]
         self.method = method
+        self.task_xcom = task_xcom
+        self.xcom_pull_flag = xcom_pull
         self.api_params = api_params
 
     def construct_api_call_params(self):
@@ -63,8 +67,16 @@ class SlackAPIOperator(BaseOperator):
         """
         if not self.api_params:
             self.construct_api_call_params()
+
+        if self.xcom_pull_flag and self.task_xcom:
+            self.api_params["text"] = self.xcom_pull(kwargs.get("context", "Default_Value"),
+                           self.task_xcom,
+                           key='return_value',
+                           include_prior_dates=False)
+            
         sc = SlackClient(self.token)
         rc = sc.api_call(self.method, **self.api_params)
+        
         if not rc['ok']:
             logging.error("Slack API call failed ({})".format(rc['error']))
             raise AirflowException("Slack API call failed: ({})".format(rc['error']))
@@ -98,6 +110,8 @@ class SlackAPIPostOperator(SlackAPIOperator):
                       'https://www.youtube.com/watch?v=J---aiyznGQ',
                  icon_url='https://raw.githubusercontent.com/airbnb/airflow/master/airflow/www/static/pin_100.png',
                  attachments=None,
+                 xcom_pull=False,
+                 task_xcom=None,
                  *args, **kwargs):
         self.method = 'chat.postMessage'
         self.channel = channel
@@ -105,7 +119,11 @@ class SlackAPIPostOperator(SlackAPIOperator):
         self.text = text
         self.icon_url = icon_url
         self.attachments = attachments
+        self.xcom_pull_flag = xcom_pull
+        self.task_xcom = task_xcom
         super(SlackAPIPostOperator, self).__init__(method=self.method,
+                                                   xcom_pull=self.xcom_pull_flag,
+                                                   task_xcom=self.task_xcom,
                                                    *args, **kwargs)
 
     def construct_api_call_params(self):

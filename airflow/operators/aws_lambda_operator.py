@@ -43,7 +43,7 @@ class AwsLambdaOperator(BaseOperator):
             event_xcoms=None,
             event_json={},
             aws_lambda_conn_id='aws_default',
-            xcom_push=None,
+            xcom_push=True,
             *args, **kwargs):
         """
         Start by just invoking something.
@@ -115,15 +115,37 @@ class AwsLambdaOperator(BaseOperator):
                                       self.function_version,
                                       self.invocation_type)
         result_payload = ""
-        if self.xcom_push_flag or self.invocation_type == 'RequestResponse':
-            try:
-                result_payload = result["Payload"].read()
-                logging.info(result_payload)
-                return json.loads(result_payload)
-            except:
-                raise AirflowException("Lambda function " +
-                                       +str(self.function_name) + " crashed.")
-        logging.info(str(result))
+        result_json = {}
+        
+        # Push if there is an error, regardless of what we planned on doing.
+        self.xcom_push_flag = self.xcom_push_flag or ("FunctionError" in result)
+        
+        for key in result:
+            logging.debug(key, result[key])
+            if self.xcom_push_flag:
+                self.xcom_push(context, key, result[key])
+        try:
+            result_payload = result["Payload"].read()
+            result_json = json.loads(result_payload)
+            logging.info(result_payload)
+            if self.xcom_push_flag:
+                self.xcom_push(context, 'payload_json',
+                               json.loads(result_payload))
+        except:
+            if self.invocation_type == 'RequestResponse':
+                # Errors always return jsons,
+                # so this won't ruin error-checking
+                raise AirflowException("Lambda function " +\
+                                   str(self.function_name) +\
+                                   " returned an invalid object type.")
+        
+        if "FunctionError" in result:
+            # This function crashed, throw an error
+            raise AirflowException("Lambda function " +\
+                                   str(self.function_name) +\
+                                   " crashed!")
+            
+        return result_json
 
     def on_kill(self):
         logging.info('Function finished execution')

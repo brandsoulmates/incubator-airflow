@@ -69,6 +69,7 @@ class BashOperator(BaseOperator):
         """
         bash_command = self.bash_command
         logging.info("tmp dir root location: \n" + gettempdir())
+        line_buffer = []        
         with TemporaryDirectory(prefix='airflowtmp') as tmp_dir:
             with NamedTemporaryFile(dir=tmp_dir, prefix=self.task_id) as f:
 
@@ -89,8 +90,10 @@ class BashOperator(BaseOperator):
 
                 logging.info("Output:")
                 line = ''
+
                 for line in iter(sp.stdout.readline, b''):
                     line = line.decode(self.output_encoding).strip()
+                    line_buffer.append(line)
                     logging.info(line)
                 sp.wait()
                 logging.info("Command exited with "
@@ -100,7 +103,7 @@ class BashOperator(BaseOperator):
                     raise AirflowException("Bash command failed")
 
         if self.xcom_push_flag:
-            return line
+            return "\n".join(line_buffer)
 
     def on_kill(self):
         logging.info('Sending SIGTERM signal to bash process group')

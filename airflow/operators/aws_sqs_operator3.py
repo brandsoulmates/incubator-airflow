@@ -11,6 +11,8 @@ class SQSOperator3(BaseOperator):
                  messages = None,
                  num_msgs = 10,
                  chunk_size = None,
+                 msgs_in_chunks = 0,
+                 msg_group_delim = ',',
                  receipt_handles = None,
                  region_name = None,
                  request_type="receive", # receive, pop, send
@@ -27,9 +29,12 @@ class SQSOperator3(BaseOperator):
         self.request_type = request_type
         self.exec_args = {
                   'message_num':num_msgs,
+                  'wait_time':5,
+                  'msgs_in_chunks':msgs_in_chunks,
+                  'chunk_size':chunk_size or 0,
+                  'msg_group_delim':msg_group_delim,
                   'receipt_handles':receipt_handles,
-                  'msgs':messages,
-                  'wait_time':5
+                  'messages':messages,
                   }
 
     def execute(self, context):
@@ -38,7 +43,7 @@ class SQSOperator3(BaseOperator):
                               region_name = self.region_name)
         try:
             resp = getattr(self.sh,self.request_type+"_messages")(**self.exec_args)
-            if self.chunk_size:
+            if self.chunk_size and self.request_type in ("pop","receive"):
                 cnum = 0
                 for resp_chunk in [resp[pos:pos+self.chunk_size] for pos in\
                                    range(0,len(resp),self.chunk_size)]:
