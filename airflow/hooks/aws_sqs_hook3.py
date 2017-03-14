@@ -21,7 +21,8 @@ class AwsSqsHook3(BaseHook):
         else:
             raise AirflowException("Queue name not mentioned.")
 
-    def _chunk_messages(self,messages,message_name = None):
+    def _chunk_messages(self,messages,message_name = None, chunk_size = 0,
+                        msg_group_delim = ','):
         '''
         formats messages into Entry format and then yields chunks
         '''
@@ -29,7 +30,18 @@ class AwsSqsHook3(BaseHook):
         if message_name not in ["ReceiptHandle"]:
             message_name = "MessageBody"
         
-        entries = [{"Id":str(pos),message_name:messages[pos]} for pos in range(len(messages))]
+        # handle nulls
+        chunk_size = chunk_size or 0
+        
+        # Only works for strings
+        if chunk_size > 1:
+            str_msgs = [str(msg) for msg in messages]
+            entries = [{
+                        "Id":str(pos),
+                        message_name:msg_group_delim.join(str_msgs[pos:pos+chunk_size])
+                        } for pos in range(0,len(str_msgs),chunk_size)]
+        else:
+            entries = [{"Id":str(pos),message_name:str(messages[pos])} for pos in range(len(messages))]
         for chunk in [entries[pos:pos+10] for pos in range(0,len(entries),10)]:
             yield chunk
     
@@ -47,7 +59,9 @@ class AwsSqsHook3(BaseHook):
         queued_ids = 0 
         total_failures = 0
         
-        for chunk in self._chunk_messages(messages, "MessageBody"):
+        for chunk in self._chunk_messages(messages, "MessageBody",
+                                          kwargs.get("chunk_size",0),
+                                          kwargs.get("msg_group_delim",',')):
             response = self.sqs.send_messages(Entries = chunk)
             
             successes = response.get("Successful",[])
@@ -61,19 +75,25 @@ class AwsSqsHook3(BaseHook):
         '''
         receive a number of messages when required from SQS.
         '''
-        
         return self.get_messages(kwargs.get('message_num',10),
                                  kwargs.get('wait_time',5),
-                                 do_pop = False)
+                                 kwargs.get('msgs_in_chunks',0),
+                                 kwargs.get('msg_group_delim',','),
+                                 kwargs.get('msg_quote_delim','"'),
+                                 do_pop = False
+                                 )
         
     def pop_messages(self,**kwargs):
         '''
         receive a number of messages when required from SQS.
         '''
-        
         return self.get_messages(kwargs.get('message_num',10),
                                  kwargs.get('wait_time',5),
-                                 do_pop = True)
+                                 kwargs.get('msgs_in_chunks',0),
+                                 kwargs.get('msg_group_delim',','),
+                                 kwargs.get('msg_quote_delim','"'),
+                                 do_pop = True
+                                 )
 
     def delete_messages(self,**kwargs):
         # Delete stuff!
@@ -96,7 +116,9 @@ class AwsSqsHook3(BaseHook):
         if not self.sqs.attributes['ApproximateNumberOfMessages']:
             raise AirflowException("No messages available to collect from queue "+str(self.sqs_queue_name))
         
-    def get_messages(self,message_num = 10, wait_time = 5, do_pop = False):
+    def get_messages(self,message_num = 10, wait_time = 5, msgs_in_chunks = 0,
+                     msg_group_delim = ',', msg_quote_delim = '"',
+                     do_pop = False):
         '''
         pops message_num messages off the queue and returns them. Deletes from the queue.
         
@@ -117,14 +139,21 @@ class AwsSqsHook3(BaseHook):
                 
                 messages = self.sqs.receive_messages(MaxNumberOfMessages=min(10,message_num),
                                                WaitTimeSeconds=max(1,wait_time))
-                msgs_received = len(messages)
+                msgs_received = 0
                 #Make sure there's something here for us
-                if not msgs_received:
+                if not len(messages):
                     break
 
                 for msg in messages:
-                    msg_bodies.append(msg.body)
+                    if msgs_in_chunks:
+                        sub_msgs = str(msg.body).split(msg_group_delim)
+                        msg_bodies.extend([sub_msg.strip('"') for sub_msg in sub_msgs])
+                        msgs_received += len(sub_msgs)
+                    else:
+                        msg_bodies.append(msg.body)
+                        msgs_received += 1
                     receipt_handles.append(msg.receipt_handle)
+                    
                 message_num -= msgs_received
             
             if do_pop:
@@ -139,5 +168,3 @@ class AwsSqsHook3(BaseHook):
         else:
             # Same len, no need to take the min
             return [(msg_bodies[i],receipt_handles[i]) for i in range(len(msg_bodies))]
-        
-            
