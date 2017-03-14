@@ -43,7 +43,7 @@ class AwsLambdaOperator(BaseOperator):
             event_xcoms=None,
             event_json={},
             aws_lambda_conn_id='aws_default',
-            xcom_push=None,
+            xcom_push=True,
             *args, **kwargs):
         """
         Start by just invoking something.
