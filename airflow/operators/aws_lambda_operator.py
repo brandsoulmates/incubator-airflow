@@ -53,7 +53,9 @@ class AwsLambdaOperator(BaseOperator):
         """
         super(AwsLambdaOperator, self).__init__(*args, **kwargs)
         # Lambdas can't run for more than 5 minutes.
-        self.execution_timeout = min(self.execution_timeout, timedelta(seconds=365))
+        # Should be at least 10 seconds longer than lambda function timeout.
+        self.execution_timeout = timedelta(seconds=max(min(self.execution_timeout.seconds,340),13))
+        self.read_timeout = self.execution_timeout.seconds
         self.xcom_push_flag = xcom_push
         self.event_xcoms = event_xcoms
         self.event_json = event_json
@@ -109,7 +111,8 @@ class AwsLambdaOperator(BaseOperator):
                      ' with version ' + str(self.function_version))
         logging.info(self.invocation_type)
 
-        hook = AwsLambdaHook(aws_lambda_conn_id=self.aws_lambda_conn_id)
+        hook = AwsLambdaHook(aws_lambda_conn_id=self.aws_lambda_conn_id,
+                             read_timeout = self.read_timeout)
         result = hook.invoke_function(self.event_json,
                                       self.function_name,
                                       self.function_version,
