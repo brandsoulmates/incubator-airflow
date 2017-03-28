@@ -1,9 +1,7 @@
-import logging
-import airflow
-import pickle
 from airflow.utils.decorators import apply_defaults
 from airflow.models import BaseOperator
 from airflow.hooks.sqs_hook import SQSHook
+import logging
 
 
 class XcomToSQS(BaseOperator):
@@ -27,5 +25,7 @@ class XcomToSQS(BaseOperator):
                                  self.context_id,
                                  key='return_value',
                                  include_prior_dates=False)
-            if val is not None:
+            if isinstance(val,list):
                 self.sh.send_message(','.join(val))
+            else:
+                logging.info("return value not pushed to sqs: "+str(val))
