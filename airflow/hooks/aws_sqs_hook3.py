@@ -2,6 +2,7 @@ from airflow.hooks.base_hook import BaseHook
 # Will show up under airflow.hooks.PluginHook
 import boto3
 from airflow.exceptions import AirflowException
+from six import string_types
 
 class AwsSqsHook3(BaseHook):
 
