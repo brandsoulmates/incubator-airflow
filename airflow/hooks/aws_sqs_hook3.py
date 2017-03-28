@@ -34,7 +34,7 @@ class AwsSqsHook3(BaseHook):
         chunk_size = chunk_size or 0
         
         # Only works for strings
-        if chunk_size > 1:
+        if chunk_size > 1 and not isinstance(messages, string_types):
             str_msgs = [str(msg) for msg in messages]
             entries = [{
                         "Id":str(pos),
