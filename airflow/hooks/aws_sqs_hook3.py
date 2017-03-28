@@ -2,6 +2,7 @@ from airflow.hooks.base_hook import BaseHook
 # Will show up under airflow.hooks.PluginHook
 import boto3
 from airflow.exceptions import AirflowException
+from six import string_types
 
 class AwsSqsHook3(BaseHook):
 
@@ -34,7 +35,7 @@ class AwsSqsHook3(BaseHook):
         chunk_size = chunk_size or 0
         
         # Only works for strings
-        if chunk_size > 1:
+        if chunk_size > 1 and not isinstance(messages, string_types):
             str_msgs = [str(msg) for msg in messages]
             entries = [{
                         "Id":str(pos),
