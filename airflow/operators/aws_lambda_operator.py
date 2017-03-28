@@ -13,6 +13,7 @@ from datetime import timedelta
 import json
 from airflow.exceptions import AirflowException
 from six import string_types
+import copy
 
 
 class AwsLambdaOperator(BaseOperator):
@@ -54,7 +55,14 @@ class AwsLambdaOperator(BaseOperator):
         super(AwsLambdaOperator, self).__init__(*args, **kwargs)
         # Lambdas can't run for more than 5 minutes.
         # Should be at least 10 seconds longer than lambda function timeout.
-        self.execution_timeout = timedelta(seconds=max(min(self.execution_timeout.seconds,340),13))
+        self.num_invocations = 1
+        if event_xcoms:
+            self.num_invocations = len(event_xcoms)
+        if not isinstance(self.execution_timeout,timedelta):
+            self.execution_timeout = timedelta(seconds=340)
+        self.execution_timeout = timedelta(seconds=(max(min(\
+                                self.execution_timeout.seconds,340),13)*\
+                                                    self.num_invocations))
         self.read_timeout = self.execution_timeout.seconds
         self.xcom_push_flag = xcom_push
         self.event_xcoms = event_xcoms
@@ -80,73 +88,78 @@ class AwsLambdaOperator(BaseOperator):
             else:
                 event_dict[key] = xcom_dict[key]
 
-    def _load_xcoms_into_event(self, context):
+    def _load_xcoms_into_event(self, context, xcom_index, event_json):
         """
         Get the config from XCOM
         """
 
-        for task_xcom in self.event_xcoms:
-            xcom_result = self.xcom_pull(context,
-                                         task_xcom['task_id'],
-                                         key=task_xcom.get('key', 'return_value'),
-                                         include_prior_dates=False)
-            if isinstance(xcom_result, string_types):
-                xcom_result = json.loads(xcom_result)
-            elif isinstance(xcom_result, dict):
-                self._add_dict_to_event_(self.event_json, xcom_result)
-            else:
-                logging.error(xcom_result)
-                raise AirflowException("Unable to read XCom from " + str(task_xcom) +
-                                       ", improper format " + str(type(xcom_result)))
+        task_xcom = self.event_xcoms[xcom_index]
+        xcom_result = self.xcom_pull(context,
+                                     task_xcom['task_id'],
+                                     key=task_xcom.get('key', 'return_value'),
+                                     include_prior_dates=False)
+        if isinstance(xcom_result, string_types):
+            xcom_result = json.loads(xcom_result)
+        elif isinstance(xcom_result, dict):
+            self._add_dict_to_event_(event_json, xcom_result)
+        else:
+            logging.error(xcom_result)
+            raise AirflowException("Unable to read XCom from " + str(task_xcom) +
+                                   ", improper format " + str(type(xcom_result)))
+        
+        return event_json
 
     def execute(self, context):
         """
         Execute the lambda function
         """
-        if self.event_xcoms:
-            self._load_xcoms_into_event(context)
-
-        logging.info(self.event_json)
-        logging.info('Invoking lambda function ' + str(self.function_name) +
-                     ' with version ' + str(self.function_version))
-        logging.info(self.invocation_type)
-
-        hook = AwsLambdaHook(aws_lambda_conn_id=self.aws_lambda_conn_id,
-                             read_timeout = self.read_timeout)
-        result = hook.invoke_function(self.event_json,
+        
+        for i in range(self.num_invocations):
+            ej = copy.deepcopy(self.event_json)
+            if self.event_xcoms:
+                ej = self._load_xcoms_into_event(context, i, ej)
+    
+            logging.info(ej)
+            logging.info('Invoking lambda function ' + str(self.function_name) +
+                         ' with version ' + str(self.function_version))
+            logging.info(self.invocation_type)
+    
+            hook = AwsLambdaHook(aws_lambda_conn_id=self.aws_lambda_conn_id,
+                                 read_timeout = self.read_timeout)
+            result = hook.invoke_function(ej,
                                       self.function_name,
                                       self.function_version,
                                       self.invocation_type)
-        result_payload = ""
-        result_json = {}
-        
-        # Push if there is an error, regardless of what we planned on doing.
-        self.xcom_push_flag = self.xcom_push_flag or ("FunctionError" in result)
-        
-        for key in result:
-            logging.debug(key, result[key])
-            if self.xcom_push_flag:
-                self.xcom_push(context, key, result[key])
-        try:
-            result_payload = result["Payload"].read()
-            result_json = json.loads(result_payload)
-            logging.info(result_payload)
-            if self.xcom_push_flag:
-                self.xcom_push(context, 'payload_json',
-                               json.loads(result_payload))
-        except:
-            if self.invocation_type == 'RequestResponse':
-                # Errors always return jsons,
-                # so this won't ruin error-checking
+            result_payload = ""
+            result_json = {}
+            
+            # Push if there is an error, regardless of what we planned on doing.
+            self.xcom_push_flag = self.xcom_push_flag or ("FunctionError" in result)
+            
+            for key in result:
+                logging.debug(key, result[key])
+                if self.xcom_push_flag:
+                    self.xcom_push(context, key, result[key])
+            try:
+                result_payload = result["Payload"].read()
+                result_json = json.loads(result_payload)
+                logging.info(result_payload)
+                if self.xcom_push_flag:
+                    self.xcom_push(context, 'payload_json_'+str(i),
+                                   json.loads(result_payload))
+            except:
+                if self.invocation_type == 'RequestResponse':
+                    # Errors always return jsons,
+                    # so this won't ruin error-checking
+                    raise AirflowException("Lambda function " +\
+                                       str(self.function_name) +\
+                                       " returned an invalid object type.")
+            
+            if "FunctionError" in result:
+                # This function crashed, throw an error
                 raise AirflowException("Lambda function " +\
-                                   str(self.function_name) +\
-                                   " returned an invalid object type.")
-        
-        if "FunctionError" in result:
-            # This function crashed, throw an error
-            raise AirflowException("Lambda function " +\
-                                   str(self.function_name) +\
-                                   " crashed!")
+                                       str(self.function_name) +\
+                                       " crashed!")
             
         return result_json
 
