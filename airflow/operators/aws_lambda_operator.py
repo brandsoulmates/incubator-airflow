@@ -63,7 +63,6 @@ class AwsLambdaOperator(BaseOperator):
         self.execution_timeout = timedelta(seconds=(max(min(\
                                 self.execution_timeout.seconds,340),13)*\
                                                     self.num_invocations))
-        self.read_timeout = self.execution_timeout.seconds
         self.xcom_push_flag = xcom_push
         self.event_xcoms = event_xcoms
         self.event_json = event_json
@@ -124,8 +123,7 @@ class AwsLambdaOperator(BaseOperator):
                          ' with version ' + str(self.function_version))
             logging.info(self.invocation_type)
     
-            hook = AwsLambdaHook(aws_lambda_conn_id=self.aws_lambda_conn_id,
-                                 read_timeout = self.read_timeout)
+            hook = AwsLambdaHook(aws_lambda_conn_id=self.aws_lambda_conn_id)
             result = hook.invoke_function(ej,
                                       self.function_name,
                                       self.function_version,
