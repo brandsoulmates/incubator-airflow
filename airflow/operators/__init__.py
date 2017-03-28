@@ -93,7 +93,8 @@ _operators = {
     'oracle_operator': ['OracleOperator'],
     'sqs_operator': ['SQSOperator'],
     'view_operator': ['ViewOperator'],
-    'aws_lambda_operator': ['AwsLambdaOperator']
+    'aws_lambda_operator': ['AwsLambdaOperator'],
+    's3_to_redshift_operator': ['CopyS3ToRedshift']
 }
 
 import os as _os
