@@ -66,14 +66,14 @@
                 <!-- Column 2: Turn dag on/off -->
                 <td>
                   {% if dag_id in orm_dags %}
-                    <input id="toggle-{{ dag_id }}" dag_id="{{ dag_id }}" type="checkbox" {{ "checked" if not orm_dags[dag_id].is_paused else "" }} data-toggle="toggle" data-size="mini">
+                    <input id="toggle-{{ dag_id }}" dag_id="{{ dag_id }}" type="checkbox" {{ "checked" if not orm_dags[dag_id].is_paused else "" }} data-toggle="toggle" data-size="mini" method="post">
                   {% endif %}
                 </td>
 
                 <!-- Column 3: Name -->
                 <td>
                     {% if dag_id in webserver_dags %}
-                    <a href="{{ url_for('airflow.tree', dag_id=dag.dag_id) }}" title="{{ dag.description }}">
+                    <a href="{{ url_for('airflow.'+dag.default_view, dag_id=dag.dag_id) }}" title="{{ dag.description }}">
                         {{ dag_id }}
                     </a>
                     {% else %}
@@ -105,19 +105,7 @@
                 </td>
 
                 <!-- Column 7: Last Run -->
-                <td class="text-nowrap">
-                    {% if dag %}
-                        {% set last_run = dag.get_last_dagrun(include_externally_triggered=True) %}
-                        {% if last_run %}
-                            <a href="{{ url_for('airflow.graph', dag_id=last_run.dag_id, execution_date=last_run.execution_date ) }}">
-                                {{ last_run.execution_date.strftime("%Y-%m-%d %H:%M") }}
-                            </a> <span id="statuses_info" class="glyphicon glyphicon-info-sign" aria-hidden="true" title="Start Date: {{last_run.start_date.strftime('%Y-%m-%d %H:%M')}}"></span>
-                        {% else %}
-                            <!--No DAG Runs-->
-                        {% endif %}
-                    {% else %}
-                        <!--No DAG Runs-->
-                    {% endif %}
+                <td class="text-nowrap latest_dag_run {{ dag.dag_id }}">
                 </td>
 
                 <!-- Column 8: Dag Runs -->
@@ -167,7 +155,7 @@
 
                 <!-- Code -->
                 <a href="{{ url_for("airflow.code", dag_id=dag.dag_id) }}" title="Code View">
-                    <span class="glyphicon glyphicon-flash" aria-hidden="true"></span>
+                    <span class="glyphicon glyphicon-file" aria-hidden="true"></span>
                 </a>
 
                 <!-- Logs -->
@@ -214,7 +202,7 @@
             is_paused = 'false'
           }
           url = 'airflow/paused?is_paused=' + is_paused + '&dag_id=' + dag_id;
-          $.ajax(url);
+          $.post(url);
         });
       });
       $('#dags').dataTable({
@@ -235,6 +223,21 @@
             $('.label.schedule.' + this.dag_id)
             .css('background-color', 'red');
           }
+        });
+      });
+      $.getJSON("{{ url_for('api_experimental.latest_dag_runs') }}", function(data) {
+        $.each(data, function() {
+          var link = $("<a>", {
+            href: this.dag_run_url,
+            text: this.execution_date
+          });
+          var info_icon = $('<span>', {
+            "aria-hidden": "true",
+            id: "statuses_info",
+            title: "Start Date: " + this.start_date,
+            "class": "glyphicon glyphicon-info-sign"
+          });
+          $('.latest_dag_run.' + this.dag_id).append(link).append(info_icon);
         });
       });
       d3.json("{{ url_for('airflow.dag_stats') }}", function(error, json) {

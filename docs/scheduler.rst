@@ -91,6 +91,7 @@ will do, is to instruct the scheduler to only create a DAG Run for the most curr
 interval series.
 
 .. code:: python
+
     """
     Code that goes along with the Airflow tutorial located at:
     https://github.com/airbnb/airflow/blob/master/airflow/example_dags/tutorial.py
@@ -104,7 +105,7 @@ interval series.
         'owner': 'airflow',
         'depends_on_past': False,
         'start_date': datetime(2015, 12, 1),
-        'email': ['airflow@airflow.com'],
+        'email': ['airflow@example.com'],
         'email_on_failure': False,
         'email_on_retry': False,
         'retries': 1,
