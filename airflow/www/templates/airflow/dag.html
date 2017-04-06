@@ -32,7 +32,7 @@
       {% if dag.parent_dag %}
         <span style='color:#AAA;'>SUBDAG: </span> <span> {{ dag.dag_id }}</span>
       {% else %}
-        <input id="pause_resume" dag_id="{{ dag.dag_id }}" type="checkbox" {{ "checked" if not dag.is_paused else "" }} data-toggle="toggle" data-size="mini">
+        <input id="pause_resume" dag_id="{{ dag.dag_id }}" type="checkbox" {{ "checked" if not dag.is_paused else "" }} data-toggle="toggle" data-size="mini" method="post">
         <span style='color:#AAA;'>DAG: </span> <span> {{ dag.dag_id }}</span> <small class="text-muted"> {{ dag.description }} </small>
       {% endif %}
       {% if root %}
@@ -90,7 +90,7 @@
       </li>
       <li>
         <a href="{{ url_for("airflow.code", dag_id=dag.dag_id, root=root) }}">
-          <span class="glyphicon glyphicon-flash" aria-hidden="true"></span>
+          <span class="glyphicon glyphicon-file" aria-hidden="true"></span>
           Code
         </a>
       </li>
@@ -205,10 +205,6 @@
             <button id="btn_success_downstream"
               type="button" class="btn" data-toggle="button">
               Downstream
-            </button>
-            <button id="btn_success_recursive"
-              type="button" class="btn" data-toggle="button">
-              Recursive
             </button>
           </span>
         </div>
@@ -340,7 +336,6 @@ function updateQueryStringParameter(uri, key, value) {
         "&downstream=" + $('#btn_success_downstream').hasClass('active') +
         "&future=" + $('#btn_success_future').hasClass('active') +
         "&past=" + $('#btn_success_past').hasClass('active') +
-        "&recursive=" + $('#btn_success_recursive').hasClass('active') +
         "&execution_date=" + execution_date +
         "&origin=" + encodeURIComponent(window.location);
 
@@ -369,7 +364,7 @@ function updateQueryStringParameter(uri, key, value) {
         is_paused = 'false'
       }
       url = "{{ url_for('airflow.paused') }}" + '?is_paused=' + is_paused + '&dag_id=' + dag_id;
-      $.ajax(url);
+      $.post(url);
     });
 
   </script>

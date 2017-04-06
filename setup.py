@@ -68,10 +68,10 @@ def git_version(version):
         import git
         repo = git.Repo('.git')
     except ImportError:
-        logger.warn('gitpython not found: Cannot compute the git version.')
+        logger.warning('gitpython not found: Cannot compute the git version.')
         return ''
     except Exception as e:
-        logger.warn('Git repo not found: Cannot compute the git version.')
+        logger.warning('Git repo not found: Cannot compute the git version.')
         return ''
     if repo:
         sha = repo.head.commit.hexsha
@@ -104,6 +104,7 @@ async = [
     'eventlet>= 0.9.7',
     'gevent>=0.13'
 ]
+azure = ['azure-storage>=0.34.0']
 celery = [
     'celery>=3.1.17',
     'flower>=0.7.3'
@@ -168,6 +169,7 @@ password = [
 github_enterprise = ['Flask-OAuthlib>=0.9.1']
 qds = ['qds-sdk>=1.9.0']
 cloudant = ['cloudant>=0.5.9,<2.0'] # major update coming soon, clamp to 0.x
+redis = ['redis>=2.10.5']
 
 all_dbs = postgres + mysql + hive + mssql + hdfs + vertica + cloudant
 devel = [
@@ -180,6 +182,8 @@ devel = [
     'nose',
     'nose-ignore-docstring==0.2',
     'nose-parameterized',
+    'nose-timer',
+    'rednose'
 ]
 devel_minreq = devel + mysql + doc + password + s3 + cgroups
 devel_hadoop = devel_minreq + hive + hdfs + webhdfs + kerberos
@@ -200,6 +204,8 @@ def do_setup():
         scripts=['airflow/bin/airflow'],
         install_requires=[
             'alembic>=0.8.3, <0.9',
+            'bleach==2.0.0',
+            'configparser>=3.5.0, <3.6.0',
             'croniter>=0.3.8, <0.4',
             'dill>=0.2.2, <0.3',
             'flask>=0.11, <0.12',
@@ -209,7 +215,7 @@ def do_setup():
             'flask-swagger==0.2.13',
             'flask-wtf==0.12',
             'funcsigs==1.0.0',
-            'future>=0.15.0, <0.16',
+            'future>=0.16.0, <0.17',
             'gitpython>=2.0.2',
             'gunicorn>=19.3.0, <19.4.0',  # 19.4.? seemed to have issues
             'jinja2>=2.7.3, <2.9.0',
@@ -232,6 +238,7 @@ def do_setup():
             'all': devel_all,
             'all_dbs': all_dbs,
             'async': async,
+            'azure': azure,
             'celery': celery,
             'cgroups': cgroups,
             'cloudant': cloudant,
@@ -266,6 +273,7 @@ def do_setup():
             'vertica': vertica,
             'webhdfs': webhdfs,
             'jira': jira,
+            'redis': redis,
         },
         classifiers=[
             'Development Status :: 5 - Production/Stable',
@@ -278,11 +286,11 @@ def do_setup():
             'Programming Language :: Python :: 3.4',
             'Topic :: System :: Monitoring',
         ],
-        author='Maxime Beauchemin',
-        author_email='maximebeauchemin@gmail.com',
-        url='https://github.com/apache/incubator-airflow',
+        author='Apache Software Foundation',
+        author_email='dev@airflow.incubator.apache.org',
+        url='http://airflow.incubator.apache.org/',
         download_url=(
-            'https://github.com/apache/incubator-airflow/tarball/' + version),
+            'https://dist.apache.org/repos/dist/release/incubator/airflow/' + version),
         cmdclass={
             'test': Tox,
             'extra_clean': CleanCommand,

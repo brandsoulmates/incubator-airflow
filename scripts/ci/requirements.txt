@@ -1,5 +1,7 @@
 alembic
+azure-storage>=0.34.0
 bcrypt
+bleach
 boto
 celery
 cgroupspy
@@ -21,6 +23,7 @@ flask-cache
 flask-login==0.2.11
 Flask-WTF
 flower
+freezegun
 future
 gunicorn
 hdfs
@@ -39,6 +42,7 @@ nose
 nose-exclude
 nose-ignore-docstring==0.2
 nose-parameterized
+nose-timer
 pandas
 psutil>=4.2.0, <5.0.0
 psycopg2
@@ -51,6 +55,7 @@ PySmbClient
 python-daemon
 python-dateutil
 redis
+rednose
 requests
 requests-kerberos
 setproctitle

@@ -54,6 +54,17 @@ class SubDagOperatorTests(unittest.TestCase):
             AirflowException,
             SubDagOperator, task_id='test', dag=dag, subdag=subdag_bad3)
 
+    def test_subdag_in_context_manager(self):
+        """
+        Creating a sub DAG within a main DAG's context manager
+        """
+        with DAG('parent', default_args=default_args) as dag:
+            subdag = DAG('parent.test', default_args=default_args)
+            op = SubDagOperator(task_id='test', subdag=subdag)
+
+            self.assertEqual(op.dag, dag)
+            self.assertEqual(op.subdag, subdag)
+
     def test_subdag_pools(self):
         """
         Subdags and subdag tasks can't both have a pool with 1 slot
@@ -91,8 +102,8 @@ class SubDagOperatorTests(unittest.TestCase):
         subdag = dagbag.get_dag('test_subdag_deadlock.subdag')
         subdag.clear()
 
-        # first make sure subdag is deadlocked
-        self.assertRaisesRegexp(AirflowException, 'deadlocked', subdag.run, start_date=DEFAULT_DATE, end_date=DEFAULT_DATE)
+        # first make sure subdag has failed
+        self.assertRaises(AirflowException, subdag.run, start_date=DEFAULT_DATE, end_date=DEFAULT_DATE)
 
         # now make sure dag picks up the subdag error
         self.assertRaises(AirflowException, dag.run, start_date=DEFAULT_DATE, end_date=DEFAULT_DATE)
