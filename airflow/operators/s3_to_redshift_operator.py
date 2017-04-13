@@ -18,6 +18,7 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import BaseOperator
 from airflow.utils.decorators import apply_defaults
 from airflow.exceptions import AirflowException
+from six import string_types
 
 
 class CopyS3ToRedshift(BaseOperator):
@@ -55,7 +56,9 @@ class CopyS3ToRedshift(BaseOperator):
             quotechar = '"',
             delimchar = ',',
             load_options=tuple(),
+            autocommit=False,
             parameters=None,
+            wlm_queue=None,
             *args, **kwargs):
         super(CopyS3ToRedshift, self).__init__(*args, **kwargs)
         
@@ -67,12 +70,14 @@ class CopyS3ToRedshift(BaseOperator):
         self.redshift_conn_id = redshift_conn_id
         self.s3_conn_id = s3_conn_id
         self.load_options = load_options
+        self.autocommit = autocommit
         self.parameters = parameters
         self.file_format = file_format
         self.quotechar = quotechar
         self.delimchar = delimchar
+        self.wlm_queue = wlm_queue
 
-    def get_s3_path(self,context):
+    def _get_s3_path(self,context):
         if self.s3_path:
             return self.s3_path
         elif self.s3_path_xcom_ti:
@@ -83,38 +88,60 @@ class CopyS3ToRedshift(BaseOperator):
         else:
             raise AirflowException("No S3 path to COPY from!")
 
+    def _assign_to_query_group(self,unload_query):
+        '''
+        If we want to be part of a query group, set that here
+        '''
+        if isinstance(self.wlm_queue, string_types):
+            wlm_prefix = """set query_group to {wlm_queue};
+                         """.format(wlm_queue=self.wlm_queue)
+            wlm_suffix = """
+                         reset query_group;"""
+            unload_query = wlm_prefix + unload_query + wlm_suffix
+        else:
+            raise AirflowException("wlm_queue must be a string!")
+        return unload_query
+    
+    def _build_query(self,a_key,s_key,s3_path,load_options):
+        return """
+        COPY {schema_name}.{table_name} FROM '{s3_path}' 
+        CREDENTIALS 'aws_access_key_id={aws_key};aws_secret_access_key={aws_secret}'
+        REGION '{region}' DELIMITER '{delimchar}' FORMAT {file_format} QUOTE AS '{quotechar}'
+        {load_options} ;
+        """.format(schema_name = self.schema_name, 
+                   table_name = self.table_name,
+                   s3_path = s3_path, 
+                   aws_key = a_key,
+                   aws_secret = s_key,
+                   region = self.region,
+                   delimchar = self.delimchar,
+                   quotechar = self.quotechar,
+                   file_format = self.file_format,
+                   load_options = load_options
+                   )
+
     def execute(self, context):
         self.hook = PostgresHook(postgres_conn_id=self.redshift_conn_id)
         self.s3 = S3Hook(s3_conn_id=self.s3_conn_id)
         a_key, s_key = self.s3.get_credentials()
         load_options = (' ').join(self.load_options)
 
-        s3_path = self.get_s3_path(context)
+        s3_path = self._get_s3_path(context)
         s3_parts = s3_path.split("s3://")[-1].split("/",1)
         bucket_name = s3_parts[0]
         prefix = s3_parts[1]
         
         
         if self.s3.check_for_prefix(bucket_name, prefix, "/"):
-            # Incase you have a custom SQL
-            copy_query = """
-                            COPY {schema_name}.{table_name} FROM '{s3_path}' 
-                            CREDENTIALS 'aws_access_key_id={aws_key};aws_secret_access_key={aws_secret}'
-                            REGION '{region}' DELIMITER '{delimchar}' FORMAT {file_format} QUOTE AS '{quotechar}'
-                            {load_options} ; commit;
-                            """.format(schema_name = self.schema_name, 
-                                       table_name = self.table_name,
-                                       s3_path = s3_path, 
-                                       aws_key = a_key,
-                                       aws_secret = s_key,
-                                       region = self.region,
-                                       delimchar = self.delimchar,
-                                       quotechar = self.quotechar,
-                                       file_format = self.file_format,
-                                       load_options = load_options
-                                       )
+            # Build the query
+            unload_query = self._build_query(a_key, s_key, s3_path, load_options)
+            
+            # Add to a WLM queue, if desired
+            if self.wlm_queue:
+                self._assign_to_query_group(unload_query)
+                
             logging.info('Executing COPY command...')
-            self.hook.run(copy_query, True)
+            self.hook.run(unload_query, self.autocommit)
             logging.info("COPY command complete...")
         else:
             logging.info("Skipping COPY command, no files to copy.")
