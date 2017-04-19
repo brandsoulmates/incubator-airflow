@@ -45,6 +45,7 @@ class AwsLambdaOperator(BaseOperator):
             event_json={},
             aws_lambda_conn_id='aws_default',
             xcom_push=True,
+            warn_on_error=False,
             *args, **kwargs):
         """
         Start by just invoking something.
@@ -70,6 +71,7 @@ class AwsLambdaOperator(BaseOperator):
         self.aws_lambda_conn_id = aws_lambda_conn_id
         self.invocation_type = invocation_type
         self.function_version = function_version
+        self.warn_on_error = warn_on_error
 
     def _add_dict_to_event_(self, event_dict, xcom_dict):
         """
@@ -81,7 +83,8 @@ class AwsLambdaOperator(BaseOperator):
         """
         for key in xcom_dict:
             # exceptions in this case are half the speed, so I'm writing ugly code.
-            if isinstance(xcom_dict, dict) and isinstance(event_dict, dict) and\
+            if isinstance(xcom_dict[key], dict) and\
+                    isinstance(event_dict[key], dict) and\
                     (key in event_dict):
                 self._add_dict_to_event_(event_dict[key], xcom_dict[key])
             else:
@@ -99,24 +102,33 @@ class AwsLambdaOperator(BaseOperator):
                                      include_prior_dates=False)
         if isinstance(xcom_result, string_types):
             xcom_result = json.loads(xcom_result)
-        elif isinstance(xcom_result, dict):
+        
+        if isinstance(xcom_result, dict):
             self._add_dict_to_event_(event_json, xcom_result)
         else:
             logging.error(xcom_result)
-            raise AirflowException("Unable to read XCom from " + str(task_xcom) +
-                                   ", improper format " + str(type(xcom_result)))
-        
+            # This is only an error if it is the first message.
+            # Otherwise we skip the execution.
+            if xcom_index > 0:
+                raise AirflowException("Unable to read XCom from " +\
+                                       str(task_xcom) + ", improper format " +\
+                                       str(type(xcom_result)))
+            else:
+                return
         return event_json
 
     def execute(self, context):
         """
         Execute the lambda function
         """
-        
+        num_crashes = 0
         for i in range(self.num_invocations):
             ej = copy.deepcopy(self.event_json)
             if self.event_xcoms:
                 ej = self._load_xcoms_into_event(context, i, ej)
+            # Don't run a lambda without an xcom if we were promised one.
+            if not ej:
+                continue
     
             logging.info(ej)
             logging.info('Invoking lambda function ' + str(self.function_name) +
@@ -155,11 +167,20 @@ class AwsLambdaOperator(BaseOperator):
             
             if "FunctionError" in result:
                 # This function crashed, throw an error
-                raise AirflowException("Lambda function " +\
-                                       str(self.function_name) +\
-                                       " crashed!")
-            
-        return result_json
+                if self.num_invocations > 1 and self.warn_on_error:
+                    logging.warning("Lambda function " +\
+                                    str(self.function_name) +\
+                                    " crashed!")
+                    num_crashes += 1
+                else:
+                    raise AirflowException("Lambda function " +\
+                                           str(self.function_name) +\
+                                           " crashed!")
+        if self.num_invocations <= 1:
+            return result_json
+        elif num_crashes >= (self.num_invocations/2):
+            raise AirflowException("Excessive crashes for function "+\
+                                   str(self.function_name))
 
     def on_kill(self):
         logging.info('Function finished execution')
