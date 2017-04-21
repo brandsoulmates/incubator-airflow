@@ -109,7 +109,7 @@ class AwsLambdaOperator(BaseOperator):
             logging.error(xcom_result)
             # This is only an error if it is the first message.
             # Otherwise we skip the execution.
-            if xcom_index > 0:
+            if xcom_index <= 0:
                 raise AirflowException("Unable to read XCom from " +\
                                        str(task_xcom) + ", improper format " +\
                                        str(type(xcom_result)))
