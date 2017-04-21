@@ -43,9 +43,11 @@ class AwsLambdaHook(BaseHook):
     Interact with Λ. This class is a wrapper around the boto library.
     """
 
-    def __init__(self, aws_lambda_conn_id='aws_default', region_name=None):
+    def __init__(self, aws_lambda_conn_id='aws_default', region_name=None,
+                 read_timeout = 325):
         self.aws_lambda_conn_id = aws_lambda_conn_id
         self.region_name = region_name
+        self.read_timeout = min(max(13, (read_timeout - 10)),325) # Set this to ~10s longer than lambda timeout.
         self.aws_lambda_conn = self.get_connection(aws_lambda_conn_id)
         self.extra_params = self.aws_lambda_conn.extra_dejson
         self.profile = self.extra_params.get('profile')
@@ -107,7 +109,7 @@ class AwsLambdaHook(BaseHook):
                                   aws_secret_access_key=s_key,
                                   region_name=region_name,
                                   config=Config(connect_timeout=30,
-                                                read_timeout=350)
+                                                read_timeout=self.read_timeout)
                                   )
         return connection
 
