@@ -147,7 +147,10 @@ class AwsSqsHook3(BaseHook):
 
                 for msg in messages:
                     if msgs_in_chunks:
-                        sub_msgs = str(msg.body).split(msg_group_delim)
+                        try:
+                            sub_msgs = str(msg.body).split(msg_group_delim)
+                        except UnicodeEncodeError:
+                            sub_msgs = unicode(msg.body).split(msg_group_delim)
                         msg_bodies.extend([sub_msg.strip('"') for sub_msg in sub_msgs])
                         msgs_received += len(sub_msgs)
                     else:
