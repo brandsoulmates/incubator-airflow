@@ -984,50 +984,48 @@ class CoreTest(unittest.TestCase):
         session.query(models.DagStat).delete()
         session.commit()
 
-        with warnings.catch_warnings(record=True) as caught_warnings:
-            models.DagStat.clean_dirty([], session=session)
-        self.assertEqual([], caught_warnings)
+        models.DagStat.update([], session=session)
 
         run1 = self.dag_bash.create_dagrun(
             run_id="run1",
             execution_date=DEFAULT_DATE,
             state=State.RUNNING)
 
-        with warnings.catch_warnings(record=True) as caught_warnings:
-            models.DagStat.clean_dirty([self.dag_bash.dag_id], session=session)
-        self.assertEqual([], caught_warnings)
+        models.DagStat.update([self.dag_bash.dag_id], session=session)
 
         qry = session.query(models.DagStat).all()
 
-        self.assertEqual(1, len(qry))
+        self.assertEqual(3, len(qry))
         self.assertEqual(self.dag_bash.dag_id, qry[0].dag_id)
-        self.assertEqual(State.RUNNING, qry[0].state)
-        self.assertEqual(1, qry[0].count)
-        self.assertFalse(qry[0].dirty)
+        for stats in qry:
+            if stats.state == State.RUNNING:
+                self.assertEqual(stats.count, 1)
+            else:
+                self.assertEqual(stats.count, 0)
+            self.assertFalse(stats.dirty)
 
         run2 = self.dag_bash.create_dagrun(
             run_id="run2",
             execution_date=DEFAULT_DATE+timedelta(days=1),
             state=State.RUNNING)
 
-        with warnings.catch_warnings(record=True) as caught_warnings:
-            models.DagStat.clean_dirty([self.dag_bash.dag_id], session=session)
-        self.assertEqual([], caught_warnings)
+        models.DagStat.update([self.dag_bash.dag_id], session=session)
 
         qry = session.query(models.DagStat).all()
 
-        self.assertEqual(1, len(qry))
+        self.assertEqual(3, len(qry))
         self.assertEqual(self.dag_bash.dag_id, qry[0].dag_id)
-        self.assertEqual(State.RUNNING, qry[0].state)
-        self.assertEqual(2, qry[0].count)
-        self.assertFalse(qry[0].dirty)
+        for stats in qry:
+            if stats.state == State.RUNNING:
+                self.assertEqual(stats.count, 2)
+            else:
+                self.assertEqual(stats.count, 0)
+            self.assertFalse(stats.dirty)
 
         session.query(models.DagRun).first().state = State.SUCCESS
         session.commit()
 
-        with warnings.catch_warnings(record=True) as caught_warnings:
-            models.DagStat.clean_dirty([self.dag_bash.dag_id], session=session)
-        self.assertEqual([], caught_warnings)
+        models.DagStat.update([self.dag_bash.dag_id], session=session)
 
         qry = session.query(models.DagStat).filter(models.DagStat.state == State.SUCCESS).all()
         self.assertEqual(1, len(qry))
@@ -1431,6 +1429,14 @@ class CliTests(unittest.TestCase):
         os.remove('variables1.json')
         os.remove('variables2.json')
 
+    def _wait_pidfile(self, pidfile):
+        while True:
+            try:
+                with open(pidfile) as f:
+                    return int(f.read())
+            except:
+                sleep(1)
+
     def test_cli_webserver_foreground(self):
         import subprocess
 
@@ -1450,17 +1456,25 @@ class CliTests(unittest.TestCase):
 
     @unittest.skipIf("TRAVIS" in os.environ and bool(os.environ["TRAVIS"]),
                      "Skipping test due to lack of required file permission")
+    def test_cli_webserver_foreground_with_pid(self):
+        import subprocess
+
+        # Run webserver in foreground with --pid option
+        pidfile = tempfile.mkstemp()[1]
+        p = subprocess.Popen(["airflow", "webserver", "--pid", pidfile])
+
+        # Check the file specified by --pid option exists
+        self._wait_pidfile(pidfile)
+
+        # Terminate webserver
+        p.terminate()
+        p.wait()
+
+    @unittest.skipIf("TRAVIS" in os.environ and bool(os.environ["TRAVIS"]),
+                     "Skipping test due to lack of required file permission")
     def test_cli_webserver_background(self):
         import subprocess
         import psutil
-
-        def wait_pidfile(pidfile):
-            while True:
-                try:
-                    with open(pidfile) as f:
-                        return int(f.read())
-                except IOError:
-                    sleep(1)
 
         # Confirm that webserver hasn't been launched.
         self.assertEqual(1, subprocess.Popen(["pgrep", "-c", "airflow"]).wait())
@@ -1469,7 +1483,7 @@ class CliTests(unittest.TestCase):
         # Run webserver in background.
         subprocess.Popen(["airflow", "webserver", "-D"])
         pidfile = cli.setup_locations("webserver")[0]
-        wait_pidfile(pidfile)
+        self._wait_pidfile(pidfile)
 
         # Assert that gunicorn and its monitor are launched.
         self.assertEqual(0, subprocess.Popen(["pgrep", "-c", "airflow"]).wait())
@@ -1477,7 +1491,7 @@ class CliTests(unittest.TestCase):
 
         # Terminate monitor process.
         pidfile = cli.setup_locations("webserver-monitor")[0]
-        pid = wait_pidfile(pidfile)
+        pid = self._wait_pidfile(pidfile)
         p = psutil.Process(pid)
         p.terminate()
         p.wait()

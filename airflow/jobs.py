@@ -1029,9 +1029,6 @@ class SchedulerJob(BaseJob):
                              "with {open_slots} open slots and {num_queued} "
                              "task instances in queue".format(**locals()))
 
-            if open_slots <= 0:
-                continue
-
             priority_sorted_task_instances = sorted(
                 task_instances, key=lambda ti: (-ti.priority_weight, ti.execution_date))
 
@@ -1040,7 +1037,8 @@ class SchedulerJob(BaseJob):
 
             for task_instance in priority_sorted_task_instances:
                 if open_slots <= 0:
-                    self.logger.info("No more slots free")
+                    self.logger.info("Not scheduling since there are {} open slots in pool {}"
+                        .format(open_slots, pool))
                     # Can't schedule any more since there are no more open slots.
                     break
 
@@ -1064,11 +1062,12 @@ class SchedulerJob(BaseJob):
                 dag_id = task_instance.dag_id
 
                 if dag_id not in dag_id_to_possibly_running_task_count:
+                    # TODO(saguziel): also check against QUEUED state, see AIRFLOW-1104
                     dag_id_to_possibly_running_task_count[dag_id] = \
                         DAG.get_num_task_instances(
                             dag_id,
                             simple_dag_bag.get_dag(dag_id).task_ids,
-                            states=[State.RUNNING, State.QUEUED],
+                            states=[State.RUNNING],
                             session=session)
 
                 current_task_concurrency = dag_id_to_possibly_running_task_count[dag_id]
@@ -1177,7 +1176,7 @@ class SchedulerJob(BaseJob):
             self._process_task_instances(dag, tis_out)
             self.manage_slas(dag)
 
-        models.DagStat.clean_dirty([d.dag_id for d in dags])
+        models.DagStat.update([d.dag_id for d in dags])
 
     def _process_executor_events(self):
         """
@@ -1359,7 +1358,8 @@ class SchedulerJob(BaseJob):
         active_runs = DagRun.find(
             state=State.RUNNING,
             external_trigger=False,
-            session=session
+            session=session,
+            no_backfills=True,
         )
         for dr in active_runs:
             self.logger.info("Resetting {} {}".format(dr.dag_id,
@@ -1822,7 +1822,8 @@ class BackfillJob(BaseJob):
 
             for ti in run.get_task_instances():
                 # all tasks part of the backfill are scheduled to run
-                ti.set_state(State.SCHEDULED, session=session)
+                if ti.state == State.NONE:
+                    ti.set_state(State.SCHEDULED, session=session)
                 tasks_to_run[ti.key] = ti
 
             next_run_date = self.dag.following_schedule(next_run_date)
@@ -1854,6 +1855,13 @@ class BackfillJob(BaseJob):
                         ti.execution_date == (start_date or ti.start_date))
                     self.logger.debug("Task instance to run {} state {}"
                                       .format(ti, ti.state))
+
+                    # guard against externally modified tasks instances or
+                    # in case max concurrency has been reached at task runtime
+                    if ti.state == State.NONE:
+                        self.logger.warning("FIXME: task instance {} state was set to "
+                                            "None externally. This should not happen")
+                        ti.set_state(State.SCHEDULED, session=session)
 
                     # The task was already marked successful or skipped by a
                     # different Job. Don't rerun it.
@@ -1925,6 +1933,15 @@ class BackfillJob(BaseJob):
                             started.pop(key)
                         continue
 
+                    # special case
+                    if ti.state == State.UP_FOR_RETRY:
+                        self.logger.debug("Task instance {} retry period not expired yet"
+                                          .format(ti))
+                        if key in started:
+                            started.pop(key)
+                        tasks_to_run[key] = ti
+                        continue
+
                     # all remaining tasks
                     self.logger.debug('Adding {} to not_ready'.format(ti))
                     not_ready.add(key)
@@ -1959,7 +1976,7 @@ class BackfillJob(BaseJob):
                     active_dag_runs.remove(run)
 
                 if run.dag.is_paused:
-                    models.DagStat.clean_dirty([run.dag_id], session=session)
+                    models.DagStat.update([run.dag_id], session=session)
 
             msg = ' | '.join([
                 "[backfill progress]",
