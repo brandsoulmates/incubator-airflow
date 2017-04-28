@@ -12,16 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+import sys
 import unittest
+from io import StringIO
+
+import mock
 
 from airflow import configuration, models
 from airflow.utils import db
-from airflow.exceptions import AirflowException
 from airflow.contrib.hooks.spark_submit_hook import SparkSubmitHook
 
 
 class TestSparkSubmitHook(unittest.TestCase):
+
     _spark_job_file = 'test_application.py'
     _config = {
         'conf': {
@@ -37,20 +40,45 @@ class TestSparkSubmitHook(unittest.TestCase):
         'principal': 'user/spark@airflow.org',
         'name': 'spark-job',
         'num_executors': 10,
-        'verbose': True
+        'verbose': True,
+        'driver_memory': '3g',
+        'java_class': 'com.foo.bar.AppMain',
+        'application_args': [
+            '-f foo',
+            '--bar bar',
+            'baz'
+        ]
     }
 
     def setUp(self):
+
+        if sys.version_info[0] == 3:
+            raise unittest.SkipTest('TestSparkSubmitHook won\'t work with '
+                                    'python3. No need to test anything here')
+
         configuration.load_test_config()
         db.merge_conn(
             models.Connection(
                 conn_id='spark_yarn_cluster', conn_type='spark',
-                host='yarn://yarn-mater', extra='{"queue": "root.etl", "deploy-mode": "cluster"}')
+                host='yarn://yarn-master', extra='{"queue": "root.etl", "deploy-mode": "cluster"}')
         )
         db.merge_conn(
             models.Connection(
                 conn_id='spark_default_mesos', conn_type='spark',
                 host='mesos://host', port=5050)
+        )
+
+        db.merge_conn(
+            models.Connection(
+                conn_id='spark_home_set', conn_type='spark',
+                host='yarn://yarn-master',
+                extra='{"spark-home": "/opt/myspark"}')
+        )
+
+        db.merge_conn(
+            models.Connection(
+                conn_id='spark_home_not_set', conn_type='spark',
+                host='yarn://yarn-master')
         )
 
     def test_build_command(self):
@@ -72,34 +100,49 @@ class TestSparkSubmitHook(unittest.TestCase):
         assert "--principal {}".format(self._config['principal']) in cmd
         assert "--name {}".format(self._config['name']) in cmd
         assert "--num-executors {}".format(self._config['num_executors']) in cmd
+        assert "--class {}".format(self._config['java_class']) in cmd
+        assert "--driver-memory {}".format(self._config['driver_memory']) in cmd
 
         # Check if all config settings are there
         for k in self._config['conf']:
             assert "--conf {0}={1}".format(k, self._config['conf'][k]) in cmd
 
+        # Check the application arguments are there
+        for a in self._config['application_args']:
+            assert a in cmd
+
+        # Check if application arguments are after the application
+        application_idx = cmd.find(self._spark_job_file)
+        for a in self._config['application_args']:
+            assert cmd.find(a) > application_idx
+
         if self._config['verbose']:
             assert "--verbose" in cmd
 
-    def test_submit(self):
+    @mock.patch('airflow.contrib.hooks.spark_submit_hook.subprocess')
+    def test_submit(self, mock_process):
+        # We don't have spark-submit available, and this is hard to mock, so let's
+        # just use this simple mock.
+        mock_Popen = mock_process.Popen.return_value
+        mock_Popen.stdout = StringIO(u'stdout')
+        mock_Popen.stderr = StringIO(u'stderr')
+        mock_Popen.returncode = None
+        mock_Popen.communicate.return_value = ['extra stdout', 'extra stderr']
         hook = SparkSubmitHook()
-
-        # We don't have spark-submit available, and this is hard to mock, so just accept
-        # an exception for now.
-        with self.assertRaises(AirflowException):
-            hook.submit(self._spark_job_file)
+        hook.submit(self._spark_job_file)
 
     def test_resolve_connection(self):
 
         # Default to the standard yarn connection because conn_id does not exists
         hook = SparkSubmitHook(conn_id='')
-        self.assertEqual(hook._resolve_connection(), ('yarn', None, None))
+        self.assertEqual(hook._resolve_connection(), ('yarn', None, None, None))
         assert "--master yarn" in ' '.join(hook._build_command(self._spark_job_file))
 
         # Default to the standard yarn connection
         hook = SparkSubmitHook(conn_id='spark_default')
         self.assertEqual(
             hook._resolve_connection(),
-            ('yarn', 'root.default', None)
+            ('yarn', 'root.default', None, None)
         )
         cmd = ' '.join(hook._build_command(self._spark_job_file))
         assert "--master yarn" in cmd
@@ -109,7 +152,7 @@ class TestSparkSubmitHook(unittest.TestCase):
         hook = SparkSubmitHook(conn_id='spark_default_mesos')
         self.assertEqual(
             hook._resolve_connection(),
-            ('mesos://host:5050', None, None)
+            ('mesos://host:5050', None, None, None)
         )
 
         cmd = ' '.join(hook._build_command(self._spark_job_file))
@@ -119,13 +162,33 @@ class TestSparkSubmitHook(unittest.TestCase):
         hook = SparkSubmitHook(conn_id='spark_yarn_cluster')
         self.assertEqual(
             hook._resolve_connection(),
-            ('yarn://yarn-master', 'root.etl', 'cluster')
+            ('yarn://yarn-master', 'root.etl', 'cluster', None)
         )
 
         cmd = ' '.join(hook._build_command(self._spark_job_file))
         assert "--master yarn://yarn-master" in cmd
         assert "--queue root.etl" in cmd
         assert "--deploy-mode cluster" in cmd
+
+        # Set the spark home
+        hook = SparkSubmitHook(conn_id='spark_home_set')
+        self.assertEqual(
+            hook._resolve_connection(),
+            ('yarn://yarn-master', None, None, '/opt/myspark')
+        )
+
+        cmd = ' '.join(hook._build_command(self._spark_job_file))
+        assert cmd.startswith('/opt/myspark/bin/spark-submit')
+
+        # Spark home not set
+        hook = SparkSubmitHook(conn_id='spark_home_not_set')
+        self.assertEqual(
+            hook._resolve_connection(),
+            ('yarn://yarn-master', None, None, None)
+        )
+
+        cmd = ' '.join(hook._build_command(self._spark_job_file))
+        assert cmd.startswith('spark-submit')
 
     def test_process_log(self):
         # Must select yarn connection
