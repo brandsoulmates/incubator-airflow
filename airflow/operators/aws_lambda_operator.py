@@ -86,6 +86,7 @@ class AwsLambdaOperator(BaseOperator):
             if isinstance(xcom_dict[key], dict) and\
                     isinstance(event_dict[key], dict) and\
                     (key in event_dict):
+                logging.info(key)
                 self._add_dict_to_event_(event_dict[key], xcom_dict[key])
             else:
                 event_dict[key] = xcom_dict[key]

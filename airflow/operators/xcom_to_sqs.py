@@ -25,7 +25,7 @@ class XcomToSQS(BaseOperator):
                                  self.context_id,
                                  key='return_value',
                                  include_prior_dates=False)
-            if isinstance(val,list):
+            if isinstance(val,list) and len(val) >= 1:
                 self.sh.send_message(','.join(val))
             else:
                 logging.info("return value not pushed to sqs: "+str(val))
