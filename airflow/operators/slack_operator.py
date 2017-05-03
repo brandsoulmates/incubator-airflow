@@ -41,7 +41,8 @@ class SlackAPIOperator(BaseOperator):
                  api_params=None,
                  task_xcom=None,
                  xcom_pull=False,
-                 *args, **kwargs):
+                 *args,
+                 **kwargs):
         super(SlackAPIOperator, self).__init__(*args, **kwargs)
         self.token = os.environ["SLACK_API_TOKEN"]
         self.method = method
@@ -69,17 +70,19 @@ class SlackAPIOperator(BaseOperator):
             self.construct_api_call_params()
 
         if self.xcom_pull_flag and self.task_xcom:
-            self.api_params["text"] = self.xcom_pull(kwargs.get("context", "Default_Value"),
-                           self.task_xcom,
-                           key='return_value',
-                           include_prior_dates=False)
-            
+            self.api_params["text"] = self.xcom_pull(
+                kwargs.get("context", "Default_Value"),
+                self.task_xcom,
+                key='return_value',
+                include_prior_dates=False)
+
         sc = SlackClient(self.token)
         rc = sc.api_call(self.method, **self.api_params)
-        
+
         if not rc['ok']:
             logging.error("Slack API call failed ({})".format(rc['error']))
-            raise AirflowException("Slack API call failed: ({})".format(rc['error']))
+            raise AirflowException(
+                "Slack API call failed: ({})".format(rc['error']))
 
 
 class SlackAPIPostOperator(SlackAPIOperator):
@@ -102,17 +105,20 @@ class SlackAPIPostOperator(SlackAPIOperator):
     ui_color = '#FFBA40'
 
     @apply_defaults
-    def __init__(self,
-                 channel='#general',
-                 username='Airflow',
-                 text='No message has been set.\n'
-                      'Here is a cat video instead\n'
-                      'https://www.youtube.com/watch?v=J---aiyznGQ',
-                 icon_url='https://raw.githubusercontent.com/airbnb/airflow/master/airflow/www/static/pin_100.png',
-                 attachments=None,
-                 xcom_pull=False,
-                 task_xcom=None,
-                 *args, **kwargs):
+    def __init__(
+            self,
+            channel='#general',
+            username='Airflow',
+            text='No message has been set.\n'
+            'Here is a cat video instead\n'
+            'https://www.youtube.com/watch?v=J---aiyznGQ',
+            icon_url='https://raw.githubusercontent.com/airbnb/airflow/master/airflow/www/static/pin_100.png',
+            attachments=None,
+            xcom_pull=False,
+            task_xcom=None,
+            *args,
+            **kwargs):
+
         self.method = 'chat.postMessage'
         self.channel = channel
         self.username = username
@@ -121,10 +127,12 @@ class SlackAPIPostOperator(SlackAPIOperator):
         self.attachments = attachments
         self.xcom_pull_flag = xcom_pull
         self.task_xcom = task_xcom
-        super(SlackAPIPostOperator, self).__init__(method=self.method,
-                                                   xcom_pull=self.xcom_pull_flag,
-                                                   task_xcom=self.task_xcom,
-                                                   *args, **kwargs)
+        super(SlackAPIPostOperator, self).__init__(
+            method=self.method,
+            xcom_pull=self.xcom_pull_flag,
+            task_xcom=self.task_xcom,
+            *args,
+            **kwargs)
 
     def construct_api_call_params(self):
         self.api_params = {
