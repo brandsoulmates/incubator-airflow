@@ -120,17 +120,19 @@ class RedshiftToS3Transfer(BaseOperator):
             # (', ').join(map(lambda c: "CAST({0} AS {1}) AS {0}".format(c[0], c[1]),
             column_castings = self.column_mapping(columns)
             #                 columns))
-        unload_query = """
-                        UNLOAD ('SELECT {0}
-                        UNION ALL
-                        SELECT {1} FROM {2}.{3}
-                        ORDER BY 1 DESC')
-                        TO 's3://{4}/{5}/{3}_'
-                        with
-                        credentials 'aws_access_key_id={6};aws_secret_access_key={7}'
-                        {8};
-                        """.format(column_names, column_castings, self.schema, self.table,
-                                self.s3_bucket, self.s3_key, a_key, s_key, unload_options)
+
+            unload_query = """
+                UNLOAD ('SELECT {0}
+                UNION
+                SELECT {1}
+                FROM {2}.{3} order by 1 desc')
+                TO 's3://{4}/{5}/{9}/{3}/{3}_'
+                with
+                credentials 'aws_access_key_id={6};aws_secret_access_key={7}'
+                {8}
+                delimiter '|' addquotes escape allowoverwrite;
+                """.format(column_names, column_castings, self.schema, self.table,
+                           self.s3_bucket, self.s3_key, a_key, s_key, unload_options, date_dir)
                 
         # If we are expected to use a worflow management queue
         if isinstance(self.wlm_queue, string_types):
