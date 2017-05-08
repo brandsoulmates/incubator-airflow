@@ -75,6 +75,8 @@ class RedshiftToS3Transfer(BaseOperator):
     def column_mapping(self, columns):
         ret_val = []
         for a in columns:
+            if 'message_text' in a[0]:
+                ret_val.append("CAST(REPLACE({0}, chr(10), chr(32)) AS TEXT) AS {0}".format(a[0]))
             if a[1] == "boolean":
                 ret_val.append(
                     "CAST((CASE when {0} then \\'1\\' else \\'0\\' end) AS TEXT) AS {0}".format(a[0], a[1]))
@@ -133,7 +135,7 @@ class RedshiftToS3Transfer(BaseOperator):
                 delimiter '|' addquotes escape allowoverwrite;
                 """.format(column_names, column_castings, self.schema, self.table,
                            self.s3_bucket, self.s3_key, a_key, s_key, unload_options, date_dir)
-                
+
         # If we are expected to use a worflow management queue
         if isinstance(self.wlm_queue, string_types):
             wlm_prefix = """set query_group to {wlm_queue};
@@ -141,7 +143,7 @@ class RedshiftToS3Transfer(BaseOperator):
             wlm_suffix = """
                          reset query_group;"""
             unload_query = wlm_prefix + unload_query + wlm_suffix
-            
+
         print unload_query
         logging.info('Executing UNLOAD command...')
         self.hook.run(unload_query, self.autocommit)

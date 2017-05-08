@@ -93,13 +93,17 @@ class AwsEMROperator(BaseOperator):
             output_id = self.exec_command(self.construct_command())
             context['ti'].xcom_push(key="code", value=output_id)
         if self.terminate_cluster:
+
             output_id = context['ti'].xcom_pull(
                 task_id=self.xcom_task_id, key="code")
             self.slack_message("""
                 @channel\n ----------------------------------------\nThe Cluster is being terminated for this job. \n ----------------------------------------\nProcess id = %s
                 """ % output_id)
-            job_monitor.terminate_job(output_id)
-
+            if not job_monitor.isTerminated(output_id):
+                job_monitor.terminate_job(output_id)
+                return
+            else:
+                return
         self.slack_message("""
         @channel
         The task Id of the new job is: %s
@@ -112,8 +116,12 @@ class AwsEMROperator(BaseOperator):
                 self.slack_message("""
                 @channel\n ----------------------------------------\nThe process is Successful.\n Manual check is always a good thing. \n ----------------------------------------\nProcess id = %s
                 """ % output_id)
-
                 break
+            elif job_monitor.isTermError(output_id):
+                self.slack_message("""
+                @channel\n ----------------------------------------\nThe process Terminated with Errors\n ----------------------------------------\nProcess id = %s
+                """ % output_id)
+                raise AirflowException("The process is terminated with Errors")
             elif job_monitor.isTerminated(output_id):
                 self.slack_message("""
                 @channel\n ----------------------------------------\nThe process has been terminated\n ----------------------------------------\nProcess id = %s

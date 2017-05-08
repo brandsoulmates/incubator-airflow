@@ -69,7 +69,7 @@ class BashOperator(BaseOperator):
         """
         bash_command = self.bash_command
         logging.info("tmp dir root location: \n" + gettempdir())
-        line_buffer = []        
+        line_buffer = []
         with TemporaryDirectory(prefix='airflowtmp') as tmp_dir:
             with NamedTemporaryFile(dir=tmp_dir, prefix=self.task_id) as f:
 
@@ -108,4 +108,3 @@ class BashOperator(BaseOperator):
     def on_kill(self):
         logging.info('Sending SIGTERM signal to bash process group')
         os.killpg(os.getpgid(self.sp.pid), signal.SIGTERM)
-
