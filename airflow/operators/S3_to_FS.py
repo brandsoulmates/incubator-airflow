@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-import logging
 from airflow.hooks.S3_hook import S3Hook
 
 from airflow.models import BaseOperator
@@ -40,11 +39,14 @@ class S3ToFileSystem(BaseOperator):
 
     def execute(self, context):
         self.s3 = S3Hook(s3_conn_id=self.s3_conn_id)
+        file_paths = []
         for k in self.s3.list_keys(self.s3_bucket, prefix=self.s3_key):
-            path = os.path.join(self.local_location, os.path.basename(k))
-            self.s3.download_file(self.s3_bucket, k, path)
-            context['ti'].xcom_push(key=path, value="")
-        # Download the file
-        # start reading from the file.
+            kpath = os.path.join(self.local_location, os.path.basename(k))
+            # Download the file
+            self.s3.download_file(self.s3_bucket, k, kpath)
+            file_paths.append(kpath)
+            context['ti'].xcom_push(key=kpath, value="")
+        context['ti'].xcom_push(key="files_added", value=file_paths)
         # read in chunks
+        # start reading from the file.
         # insert in respective SQS operators
