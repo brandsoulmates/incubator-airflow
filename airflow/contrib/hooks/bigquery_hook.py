@@ -20,7 +20,7 @@ implementation for BigQuery.
 
 import logging
 import time
-
+import six
 from apiclient.discovery import build, HttpError
 from googleapiclient import errors
 from builtins import range
@@ -874,7 +874,7 @@ def _bind_parameters(operation, parameters):
     """ Helper method that binds parameters to a SQL query. """
     # inspired by MySQL Python Connector (conversion.py)
     string_parameters = {}
-    for (name, value) in parameters.iteritems():
+    for (name, value) in six.iteritems(parameters):
         if value is None:
             string_parameters[name] = 'NULL'
         elif isinstance(value, basestring):

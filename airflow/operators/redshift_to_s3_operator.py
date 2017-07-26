@@ -142,7 +142,7 @@ class RedshiftToS3Transfer(BaseOperator):
                          reset query_group;"""
             unload_query = wlm_prefix + unload_query + wlm_suffix
             
-        print unload_query
+        print(unload_query)
         logging.info('Executing UNLOAD command...')
         self.hook.run(unload_query, self.autocommit)
         logging.info("UNLOAD command complete...")

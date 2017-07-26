@@ -78,15 +78,26 @@ class AwsEMROperator(BaseOperator):
             raise AirflowException("The return code is non zero: " +
                                    stderr)
 
-        output = json.loads(stdout.replace("\n", ""))["ClusterId"]
+        print(stdout)
+        print(type(stdout))
+        try:
+            output = json.loads(stdout.replace("\n", ""))["ClusterId"]
+        except TypeError:
+            output = json.loads(stdout.decode("utf-8")\
+                                .replace("\n",""))["ClusterId"]
         logging.info("output_id: " + output)
         return output
 
     def execute(self, context):
         s3_hook = S3Hook()
         for bucket, key in self.download_these_files:
+            print(bucket)
+            print(key)
             basename = os.path.basename(key)
-            s3_hook.download_file(bucket, key, os.path.join(self.dn_dir, basename))
+            print(basename)
+            print(os.path.join(self.dn_dir, basename))
+            local_path = os.path.join(self.dn_dir, basename)
+            s3_hook.download_file(bucket, key, local_path)
 
         job_monitor = EMRHook(emr_conn_id="S3_default")
         if self.start_cluster:

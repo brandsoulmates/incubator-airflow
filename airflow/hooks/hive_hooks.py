@@ -26,6 +26,7 @@ import subprocess
 import time
 from tempfile import NamedTemporaryFile
 import hive_metastore
+import six 
 
 from airflow.exceptions import AirflowException
 from airflow.hooks.base_hook import BaseHook
@@ -315,7 +316,7 @@ class HiveCliHook(BaseHook):
                 'V': 'STRING'    # void
             }
 
-            return dict((col, DTYPE_KIND_HIVE_TYPE[dtype.kind]) for col, dtype in df.dtypes.iteritems())
+            return dict((col, DTYPE_KIND_HIVE_TYPE[dtype.kind]) for col, dtype in six.iteritems(df.dtypes))
 
         if pandas_kwargs is None:
             pandas_kwargs = {}
