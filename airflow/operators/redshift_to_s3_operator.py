@@ -58,6 +58,7 @@ class RedshiftToS3Transfer(BaseOperator):
             parameters=None,
             custom_select=None,
             wlm_queue=None,
+            delimiter="|",
             *args, **kwargs):
         super(RedshiftToS3Transfer, self).__init__(*args, **kwargs)
         self.schema = schema
@@ -71,11 +72,14 @@ class RedshiftToS3Transfer(BaseOperator):
         self.autocommit = autocommit
         self.parameters = parameters
         self.wlm_queue = wlm_queue
+        self.delimiter = delimiter
 
     def column_mapping(self, columns):
         ret_val = []
         for a in columns:
-            if a[1] == "boolean":
+            if 'message_text' in a[0]:
+                ret_val.append("CAST(REPLACE({0}, chr(10), chr(32)) AS TEXT) AS {0}".format(a[0]))
+            elif a[1] == "boolean":
                 ret_val.append(
                     "CAST((CASE when {0} then \\'1\\' else \\'0\\' end) AS TEXT) AS {0}".format(a[0], a[1]))
             else:
@@ -100,9 +104,10 @@ class RedshiftToS3Transfer(BaseOperator):
                             with
                             credentials 'aws_access_key_id={5};aws_secret_access_key={6}'
                             {7}
-                            delimiter '|' addquotes escape allowoverwrite;
+                            delimiter '{9}' addquotes escape allowoverwrite;
                             """.format(self.custom_select, self.schema, self.table,
-                                       self.s3_bucket, self.s3_key, a_key, s_key, unload_options, date_dir)
+                                       self.s3_bucket, self.s3_key, a_key, s_key, unload_options, date_dir,
+                                       self.delimiter)
         else:
             columns_query = """SELECT column_name, data_type
                     FROM information_schema.columns
@@ -133,7 +138,7 @@ class RedshiftToS3Transfer(BaseOperator):
                 delimiter '|' addquotes escape allowoverwrite;
                 """.format(column_names, column_castings, self.schema, self.table,
                            self.s3_bucket, self.s3_key, a_key, s_key, unload_options, date_dir)
-                
+
         # If we are expected to use a worflow management queue
         if isinstance(self.wlm_queue, string_types):
             wlm_prefix = """set query_group to {wlm_queue};
@@ -141,7 +146,7 @@ class RedshiftToS3Transfer(BaseOperator):
             wlm_suffix = """
                          reset query_group;"""
             unload_query = wlm_prefix + unload_query + wlm_suffix
-            
+
         print(unload_query)
         logging.info('Executing UNLOAD command...')
         self.hook.run(unload_query, self.autocommit)
