@@ -15,6 +15,7 @@ import os
 
 class AwsEMROperator(BaseOperator):
     ui_color = '#00BFFF'
+    sc = None
     @apply_defaults
     def __init__(
             self,
@@ -47,10 +48,15 @@ class AwsEMROperator(BaseOperator):
         self.start_cluster = start_cluster
         self.terminate_cluster = terminate_cluster
         self.dn_dir = dn_dir
+        self.xcom_task_id = xcom_task_id
+
+    def slack_connect(self):
+        self.sc = SlackClient(self.token)
 
     def slack_message(self, text):
         self.token = os.environ["SLACK_API_TOKEN"]
-        sc = SlackClient(self.token)
+        if not self.sc:
+            self.slack_connect()
         api_params = {
             'channel': self.channel,
             'username': self.username,
@@ -58,7 +64,7 @@ class AwsEMROperator(BaseOperator):
             'icon_url': self.icon_url,
             'link_names': 1
         }
-        sc.api_call(self.method, **api_params)
+        self.sc.api_call(self.method, **api_params)
 
     def construct_command(self):
         command = "aws emr create-cluster"
