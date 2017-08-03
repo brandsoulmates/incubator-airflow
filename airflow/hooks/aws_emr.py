@@ -5,7 +5,7 @@ from airflow.hooks.base_hook import BaseHook
 import boto3
 import tempfile
 import json
-from S3_hook import S3Hook
+from airflow.hooks.S3_hook import S3Hook
 from subprocess import Popen, STDOUT, PIPE
 
 

@@ -14,6 +14,7 @@
 
 import logging
 import select
+import six
 import subprocess
 import time
 import uuid
@@ -154,6 +155,6 @@ class DataFlowHook(GoogleCloudBaseHook):
     def _build_cmd(self, task_id, variables, dataflow):
         command = [dataflow, "--runner=DataflowPipelineRunner"]
         if variables is not None:
-            for attr, value in variables.iteritems():
+            for attr, value in six.iteritems(variables):
                 command.append("--" + attr + "=" + value)
         return command

@@ -131,7 +131,6 @@ class CopyS3ToRedshift(BaseOperator):
         bucket_name = s3_parts[0]
         prefix = s3_parts[1]
         
-        
         if self.s3.check_for_prefix(bucket_name, prefix, "/"):
             # Build the query
             unload_query = self._build_query(a_key, s_key, s3_path, load_options)
