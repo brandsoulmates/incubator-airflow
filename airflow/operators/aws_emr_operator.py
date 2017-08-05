@@ -111,7 +111,7 @@ class AwsEMROperator(BaseOperator):
             context['ti'].xcom_push(key="code", value=output_id)
         if self.terminate_cluster:
             output_id = context['ti'].xcom_pull(
-                task_id=self.xcom_task_id, key="code")
+                task_ids=self.xcom_task_id, key="code")
             self.slack_message("""
                 @channel\n ----------------------------------------\nThe Cluster is being terminated for this job. \n ----------------------------------------\nProcess id = %s
                 """ % output_id)
