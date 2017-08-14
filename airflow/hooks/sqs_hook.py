@@ -8,7 +8,7 @@ import boto3
 class SQSHook(BaseHook):
 
     def __init__(self, queue_name=None,
-                 sqs_conn_id="s3_default",
+                 sqs_conn_id="aws_default",
                  region="us-west-2"):
         self.region_name = region
         self.sqs_conn_id = sqs_conn_id

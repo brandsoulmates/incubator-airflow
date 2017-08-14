@@ -52,7 +52,7 @@ class RedshiftToS3Transfer(BaseOperator):
             s3_bucket,
             s3_key,
             redshift_conn_id='redshift_default',
-            s3_conn_id='s3_default',
+            s3_conn_id='aws_default',
             unload_options=tuple(),
             autocommit=False,
             parameters=None,

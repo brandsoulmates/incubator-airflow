@@ -60,8 +60,8 @@ class S3FileTransformOperator(BaseOperator):
             source_s3_key,
             dest_s3_key,
             transform_script,
-            source_s3_conn_id='s3_default',
-            dest_s3_conn_id='s3_default',
+            source_s3_conn_id='aws_default',
+            dest_s3_conn_id='aws_default',
             replace=False,
             *args, **kwargs):
         super(S3FileTransformOperator, self).__init__(*args, **kwargs)

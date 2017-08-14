@@ -27,7 +27,7 @@ class S3ToFileSystem(BaseOperator):
             s3_bucket,
             s3_key,
             download_file_location,
-            s3_conn_id='s3_default',
+            s3_conn_id='aws_default',
             * args, **kwargs):
 
         super(S3ToFileSystem, self).__init__(*args, **kwargs)

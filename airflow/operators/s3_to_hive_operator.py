@@ -97,7 +97,7 @@ class S3ToHiveTransfer(BaseOperator):
             headers=False,
             check_headers=False,
             wildcard_match=False,
-            s3_conn_id='s3_default',
+            s3_conn_id='aws_default',
             hive_cli_conn_id='hive_cli_default',
             input_compressed=False,
             *args, **kwargs):

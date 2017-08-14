@@ -12,7 +12,7 @@ from subprocess import Popen, STDOUT, PIPE
 class EMRHook(BaseHook):
     STATES = ['TERMINATED', 'TERMINATED_WITH_ERRORS', 'RUNNING', 'WAITING']
 
-    def __init__(self, emr_conn_id="s3_default", region="us-west-2"):
+    def __init__(self, emr_conn_id="aws_default", region="us-west-2"):
         self.region_name = region
         self.emr_conn_id = emr_conn_id
         self.emr_conn = self.get_connection(emr_conn_id)

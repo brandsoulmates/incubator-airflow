@@ -97,7 +97,7 @@ class S3Hook(BaseHook):
 
     def __init__(
             self,
-            s3_conn_id='s3_default'):
+            s3_conn_id='aws_default'):
         self.s3_conn_id = s3_conn_id
         self.s3_conn = self.get_connection(s3_conn_id)
         self.extra_params = self.s3_conn.extra_dejson
