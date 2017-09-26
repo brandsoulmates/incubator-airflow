@@ -50,7 +50,7 @@ class CopyS3ToRedshift(BaseOperator):
             s3_path = None,
             s3_path_xcom_ti = None,
             redshift_conn_id='redshift_default',
-            s3_conn_id='s3_default',
+            s3_conn_id='aws_default',
             region='us-west-2',
             file_format = 'CSV',
             quotechar = '"',

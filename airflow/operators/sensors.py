@@ -502,7 +502,7 @@ class S3KeySensor(BaseSensorOperator):
             self, bucket_key,
             bucket_name=None,
             wildcard_match=False,
-            s3_conn_id='s3_default',
+            s3_conn_id='aws_default',
             *args, **kwargs):
         super(S3KeySensor, self).__init__(*args, **kwargs)
         # Parse
@@ -556,7 +556,7 @@ class S3PrefixSensor(BaseSensorOperator):
     def __init__(
             self, bucket_name,
             prefix, delimiter='/',
-            s3_conn_id='s3_default',
+            s3_conn_id='aws_default',
             *args, **kwargs):
         super(S3PrefixSensor, self).__init__(*args, **kwargs)
         # Parse

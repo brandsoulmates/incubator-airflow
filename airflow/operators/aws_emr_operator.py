@@ -105,7 +105,7 @@ class AwsEMROperator(BaseOperator):
             local_path = os.path.join(self.dn_dir, basename)
             s3_hook.download_file(bucket, key, local_path)
 
-        job_monitor = EMRHook(emr_conn_id="S3_default")
+        job_monitor = EMRHook(emr_conn_id="aws_default")
         if self.start_cluster:
             output_id = self.exec_command(self.construct_command())
             context['ti'].xcom_push(key="code", value=output_id)
